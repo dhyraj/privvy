@@ -1,0 +1,27 @@
+appId: com.privvy.app
+name: Guest APK import and boot
+tags:
+  - import
+  - smoke
+---
+- launchApp
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Unlock"
+- assertVisible: "Session active"
+- tapOn: "Import test APK (debug)"
+- extendedWaitUntil:
+    visible: "Imported"
+    timeout: 20000
+- assertVisible: "Guest Test"
+- tapOn: "Launch"
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 20000
+- assertVisible: "package=com.privvy.app"
+- tapOn: "Write /sdcard test"
+- extendedWaitUntil:
+    visible: "PASS: wrote"
+    timeout: 10000

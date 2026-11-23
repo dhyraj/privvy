@@ -3,10 +3,12 @@ package com.privvy.app.engine
 import android.app.Activity
 import android.app.Application
 import android.app.Instrumentation
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.PersistableBundle
+import com.privvy.app.core.stub.StubActivityBase
 
 /**
  * PrivvyInstrumentation — replaces ActivityThread.mInstrumentation in :v* guest
@@ -16,7 +18,8 @@ import android.os.PersistableBundle
  * When system_server launches a StubActivity, the original Intent (carrying the
  * guest package/class + APK path) is attached under
  * [com.privvy.app.core.stub.StubActivityBase.EXTRA_ORIGINAL]. [newActivity]
- * instantiates the guest Activity class from a per-APK DexClassLoader.
+ * instantiates the guest Activity class from a per-APK DexClassLoader and
+ * injects guest Resources before returning it.
  *
  * Every lifecycle method is delegated to the original Instrumentation —
  * otherwise activities never receive onCreate/onResume, which manifests as a
@@ -31,29 +34,40 @@ class PrivvyInstrumentation(
     // Guest instantiation
     // ------------------------------------------------------------------
     override fun newActivity(cl: ClassLoader?, className: String, intent: Intent?): Activity {
-        val originalIntent = intent?.getParcelableExtra<Intent>(
-            com.privvy.app.core.stub.StubActivityBase.EXTRA_ORIGINAL
-        )
-        val guestClass = originalIntent?.getStringExtra("privvy.guest_class")
-        val apkPath = originalIntent?.getStringExtra("privvy.apk_path")
-        if (guestClass != null && apkPath != null) {
-            val loader = guestClassLoaderFor(apkPath)
-            return loader.loadClass(guestClass).getDeclaredConstructor().newInstance() as Activity
+        val originalIntent = intent?.getParcelableExtra<Intent>(StubActivityBase.EXTRA_ORIGINAL)
+        val pkg = originalIntent?.getStringExtra(GuestExtras.PACKAGE)
+        val activityName = originalIntent?.getStringExtra(GuestExtras.ACTIVITY)
+        val apkPaths = originalIntent?.getStringArrayExtra(GuestExtras.APK_PATHS)?.toList()
+        val nativeLibDir = originalIntent?.getStringExtra(GuestExtras.NATIVE_LIB_DIR)
+        val themeId = originalIntent?.getIntExtra(GuestExtras.THEME, 0) ?: 0
+
+        if (pkg != null && activityName != null && !apkPaths.isNullOrEmpty()) {
+            val loader = VirtualEngine.guestClassLoader(context, pkg, apkPaths, nativeLibDir)
+            val guest = loader.loadClass(activityName)
+                .getDeclaredConstructor()
+                .apply { isAccessible = true }
+                .newInstance() as Activity
+
+            val resources = GuestResources.build(context, apkPaths)
+            GuestResources.attach(guest, resources, themeId)
+
+            // Rewrite the stub intent in place so Activity.attach sees the guest
+            // component and the framework reports the guest package/name.
+            intent?.component = ComponentName(pkg, activityName)
+            intent?.action = Intent.ACTION_MAIN
+            intent?.addCategory(Intent.CATEGORY_LAUNCHER)
+            intent?.removeExtra(StubActivityBase.EXTRA_ORIGINAL)
+            intent?.removeExtra(GuestExtras.PACKAGE)
+            intent?.removeExtra(GuestExtras.ACTIVITY)
+            intent?.removeExtra(GuestExtras.APK_PATHS)
+            intent?.removeExtra(GuestExtras.NATIVE_LIB_DIR)
+            intent?.removeExtra(GuestExtras.THEME)
+            intent?.removeExtra(GuestExtras.SPACE_ID)
+
+            return guest
         }
         return original.newActivity(cl, className, intent)
     }
-
-    private val classLoaders = mutableMapOf<String, ClassLoader>()
-
-    private fun guestClassLoaderFor(apkPath: String): ClassLoader =
-        classLoaders.getOrPut(apkPath) {
-            val outDir = context.codeCacheDir.resolve("privvy-guest")
-            VirtualEngine.buildDexClassLoader(
-                apkPaths = apkPath.split(":"),
-                nativeLibDir = outDir,
-                parentClassLoader = context.classLoader,
-            )
-        }
 
     // ------------------------------------------------------------------
     // Lifecycle delegation — REQUIRED. Instrumentation's defaults are no-ops.

@@ -48,36 +48,36 @@
         -->
 
         <!-- Space 0 (decoy slot) -->
-        <activity android:name=".core.stub.StubActivityStandard_V0" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v0" android:taskAffinity="com.privvy.app.space0" android:excludeFromRecents="true" />
-        <activity android:name=".core.stub.StubActivitySingleTop_V0" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v0" android:taskAffinity="com.privvy.app.space0" />
-        <activity android:name=".core.stub.StubActivitySingleTask_V0" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v0" android:taskAffinity="com.privvy.app.space0" />
-        <service android:name=".core.stub.StubService_V0" android:exported="false" android:process=":v0" />
-        <receiver android:name=".core.stub.StubReceiver_V0" android:exported="false" android:process=":v0" />
-        <provider android:name=".core.stub.StubContentProvider_V0" android:authorities="com.privvy.app.stub.provider.v0" android:exported="false" android:process=":v0" />
+        <activity android:name=".core.stub.StubActivityStandard_V0" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v0" android:taskAffinity="com.privvy.app.space0" android:excludeFromRecents="true"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V0" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v0" android:taskAffinity="com.privvy.app.space0"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V0" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v0" android:taskAffinity="com.privvy.app.space0"  android:theme="@android:style/Theme.NoTitleBar" />
+        <service android:name=".core.stub.StubService_V0" android:exported="false" android:process=":v0"  android:theme="@android:style/Theme.NoTitleBar" />
+        <receiver android:name=".core.stub.StubReceiver_V0" android:exported="false" android:process=":v0"  android:theme="@android:style/Theme.NoTitleBar" />
+        <provider android:name=".core.stub.StubContentProvider_V0" android:authorities="com.privvy.app.stub.provider.v0" android:exported="false" android:process=":v0"  android:theme="@android:style/Theme.NoTitleBar" />
 
         <!-- Space 1 (primary vault slot) -->
-        <activity android:name=".core.stub.StubActivityStandard_V1" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v1" android:taskAffinity="com.privvy.app.space1" android:excludeFromRecents="true" />
-        <activity android:name=".core.stub.StubActivitySingleTop_V1" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v1" android:taskAffinity="com.privvy.app.space1" />
-        <activity android:name=".core.stub.StubActivitySingleTask_V1" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v1" android:taskAffinity="com.privvy.app.space1" />
-        <service android:name=".core.stub.StubService_V1" android:exported="false" android:process=":v1" />
-        <receiver android:name=".core.stub.StubReceiver_V1" android:exported="false" android:process=":v1" />
-        <provider android:name=".core.stub.StubContentProvider_V1" android:authorities="com.privvy.app.stub.provider.v1" android:exported="false" android:process=":v1" />
+        <activity android:name=".core.stub.StubActivityStandard_V1" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v1" android:taskAffinity="com.privvy.app.space1" android:excludeFromRecents="true"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V1" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v1" android:taskAffinity="com.privvy.app.space1"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V1" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v1" android:taskAffinity="com.privvy.app.space1"  android:theme="@android:style/Theme.NoTitleBar" />
+        <service android:name=".core.stub.StubService_V1" android:exported="false" android:process=":v1"  android:theme="@android:style/Theme.NoTitleBar" />
+        <receiver android:name=".core.stub.StubReceiver_V1" android:exported="false" android:process=":v1"  android:theme="@android:style/Theme.NoTitleBar" />
+        <provider android:name=".core.stub.StubContentProvider_V1" android:authorities="com.privvy.app.stub.provider.v1" android:exported="false" android:process=":v1"  android:theme="@android:style/Theme.NoTitleBar" />
 
         <!-- Space 2 -->
-        <activity android:name=".core.stub.StubActivityStandard_V2" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v2" android:taskAffinity="com.privvy.app.space2" android:excludeFromRecents="true" />
-        <activity android:name=".core.stub.StubActivitySingleTop_V2" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v2" android:taskAffinity="com.privvy.app.space2" />
-        <activity android:name=".core.stub.StubActivitySingleTask_V2" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v2" android:taskAffinity="com.privvy.app.space2" />
-        <service android:name=".core.stub.StubService_V2" android:exported="false" android:process=":v2" />
-        <receiver android:name=".core.stub.StubReceiver_V2" android:exported="false" android:process=":v2" />
-        <provider android:name=".core.stub.StubContentProvider_V2" android:authorities="com.privvy.app.stub.provider.v2" android:exported="false" android:process=":v2" />
+        <activity android:name=".core.stub.StubActivityStandard_V2" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v2" android:taskAffinity="com.privvy.app.space2" android:excludeFromRecents="true"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V2" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v2" android:taskAffinity="com.privvy.app.space2"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V2" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v2" android:taskAffinity="com.privvy.app.space2"  android:theme="@android:style/Theme.NoTitleBar" />
+        <service android:name=".core.stub.StubService_V2" android:exported="false" android:process=":v2"  android:theme="@android:style/Theme.NoTitleBar" />
+        <receiver android:name=".core.stub.StubReceiver_V2" android:exported="false" android:process=":v2"  android:theme="@android:style/Theme.NoTitleBar" />
+        <provider android:name=".core.stub.StubContentProvider_V2" android:authorities="com.privvy.app.stub.provider.v2" android:exported="false" android:process=":v2"  android:theme="@android:style/Theme.NoTitleBar" />
 
         <!-- Space 3 -->
-        <activity android:name=".core.stub.StubActivityStandard_V3" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v3" android:taskAffinity="com.privvy.app.space3" android:excludeFromRecents="true" />
-        <activity android:name=".core.stub.StubActivitySingleTop_V3" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v3" android:taskAffinity="com.privvy.app.space3" />
-        <activity android:name=".core.stub.StubActivitySingleTask_V3" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v3" android:taskAffinity="com.privvy.app.space3" />
-        <service android:name=".core.stub.StubService_V3" android:exported="false" android:process=":v3" />
-        <receiver android:name=".core.stub.StubReceiver_V3" android:exported="false" android:process=":v3" />
-        <provider android:name=".core.stub.StubContentProvider_V3" android:authorities="com.privvy.app.stub.provider.v3" android:exported="false" android:process=":v3" />
+        <activity android:name=".core.stub.StubActivityStandard_V3" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v3" android:taskAffinity="com.privvy.app.space3" android:excludeFromRecents="true"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V3" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v3" android:taskAffinity="com.privvy.app.space3"  android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V3" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v3" android:taskAffinity="com.privvy.app.space3"  android:theme="@android:style/Theme.NoTitleBar" />
+        <service android:name=".core.stub.StubService_V3" android:exported="false" android:process=":v3"  android:theme="@android:style/Theme.NoTitleBar" />
+        <receiver android:name=".core.stub.StubReceiver_V3" android:exported="false" android:process=":v3"  android:theme="@android:style/Theme.NoTitleBar" />
+        <provider android:name=".core.stub.StubContentProvider_V3" android:authorities="com.privvy.app.stub.provider.v3" android:exported="false" android:process=":v3"  android:theme="@android:style/Theme.NoTitleBar" />
 
         <!--
           Layer 3 anti-forensics watcher (FR-08): ACTION_SCREEN_OFF cleanup.

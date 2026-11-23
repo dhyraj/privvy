@@ -22,6 +22,12 @@ Target: Android 11 (API 30) → Android 16+ (API 36), no root, cross-OEM.
 | D-014 | 2026-11-18 | `useLegacyPackaging = true` for jniLibs | Required because manifest sets `extractNativeLibs=true`; guest APKs are DexClassLoader-loaded from the extracted native lib dir, not mmap'd from the host APK. |
 | D-015 | 2026-11-23 | UI testing: Maestro 2.12.1 + Maestro MCP (`mcp.servers.maestro` in `opencode.jsonc`), plus Compose instrumented tests | Maestro gives black-box E2E flows and MCP-driven interaction; Compose tests (androidTest) cover committed regressions. Maestro installed at `~/.maestro/bin`; MCP uses the absolute path because MCP servers may not inherit shell PATH. FLAG_SECURE makes screenshots black — use view-hierarchy assertions. |
 | D-016 | 2026-11-23 | Early vault shell: secret trigger `7391=` (and long-press) opens `VaultActivity`; calculator performs real arithmetic; only `.alias.Calculator` is a launcher entry; `VirtualStorage.bootstrap()` creates `virtual/apks` + `user_0..3/{data,sdcard}` | The app looked like a dead calculator because the spec's auth gate is Milestone 3. This dev entry unblocks manual testing now. **Not ship-ready:** it is unauthenticated until FR-02 PIN/biometric gating lands. |
+| D-017 | 2026-11-24 | No disguise: removed `ui/disguise/*`, `VaultActivity`, calculator/secret Maestro flows and launcher aliases; `MainActivity` is the sole launcher entry labelled "Privvy" with the Privvy shield icon. | User explicitly removed the calculator disguise; app now opens directly to Privvy. D-016 is **superseded**. |
+| D-018 | 2026-11-24 | Auth gate: salted PBKDF2 PIN (4–8 digits) + `androidx.biometric.BiometricPrompt` (weak+strong) with PIN fallback; `MainActivity` extends `FragmentActivity`; `FLAG_SECURE` set. | PIN hash stored in private prefs (Argon2id + Keystore in M3). Biometric only when enrolled; PIN guarantees access on every device. |
+| D-019 | 2026-11-24 | Session notification: `SessionGuardService` foreground service with ongoing "Privvy is active" notification, Close action, `POST_NOTIFICATIONS` runtime request (API 33+), `FOREGROUND_SERVICE_SPECIAL_USE` (API 34+). Started after unlock; stopped on lock/close/task removal. | FGS is the only reliable ongoing-notification mechanism; verified present while unlocked and removed on lock via `dumpsys notification`/`activity services`. |
+| D-020 | 2026-11-24 | Native IO hooks are guest-process only: installed in `:v*` processes; host process keeps real filesystem access for APK import. | Required so the importer can read external APKs without being redirected; self-test now runs only in guest processes. |
+| D-021 | 2026-11-24 | APK importer: shared bytes under `virtual/apks/<pkg>/`, per-space `virtual/user_N/apps.json` registry, APK bundle (.apks/.xapk) support, native `.so` extraction, icon + launch activity/theme via a small binary AXML parser. | Keeps installation records per-space while sharing bytes; AXML parser avoids hidden PackageParser APIs across Android 11–16. |
+| D-022 | 2026-11-24 | Guest boot: stub Activity → PrivvyInstrumentation instantiates the guest class from a cached DexClassLoader; guest Resources built from framework-res + guest APKs via reflection on AssetManager; storage writes redirect into `virtual/user_0`. | Verified end-to-end: guest test app shows "Hello from guest APK", and `/sdcard/guest-boot-test.txt` lands in virtual storage (PASS). |
 
 ---
 
@@ -57,6 +63,8 @@ app/src/main/
 
 - [x] 2026-11-23 — **UI testing capability set up**: Maestro 2.12.1 installed; Maestro MCP configured in `opencode.jsonc` (`mcp.servers.maestro`, absolute path, no analytics) and verified via `list_devices` → emulator-5554 connected; skill `.opencode/skills/android-ui-test/SKILL.md` created; reusable flow `.maestro/flows/disguise-calculator.yaml` added; Compose instrumented tests wired (`androidTest`). NOTE: Maestro screenshots are black on Privvy windows due to FLAG_SECURE — use hierarchy assertions.
 - [x] 2026-11-23 — **Unlock path exists**: calculator now performs real arithmetic; `7391=` (or long-press on the display) opens `VaultActivity` with space status and a live storage-isolation test; duplicate launcher entry removed (only `.alias.Calculator`); `VirtualStorage.bootstrap()` creates `virtual/apks` + `user_0..3/{data,sdcard}` at startup.
+- [x] 2026-11-24 — **Phase A (no disguise + auth + session notification) complete**:
+- [x] 2026-11-24 — **Phase B (Milestone 1 importer + guest boot) complete**: `GuestApkImporter`, `SpaceAppRegistry`, binary AXML parser, `VirtualAppLauncher`, `GuestResources`, `guest-test-app` module; verified import + launch + isolated `/sdcard` write on Pixel 8a API 33. Maestro flow `.maestro/flows/guest-boot.yaml` (partial: import+launch+storage PASS). removed calculator/disguise code, aliases and calculator Maestro flows; added `MainActivity` (FragmentActivity) with PIN setup/unlock + biometric; updated manifest label/icon to Privvy; added `SessionGuardService` FGS notification with Close action and permissions. Compose build green; new Maestro flow `.maestro/flows/auth-session.yaml` PASS 20/20; notification verified present while unlocked and removed on lock.
 
 ### 🔄 In Progress
 - [ ] Milestone 1 (Weeks 1–3): Native IO engine & single-APK boot
@@ -67,7 +75,10 @@ app/src/main/
   - [x] ActivityThread.mInstrumentation hooked (PrivvyInstrumentation) — builds DexClassLoader per guest APK path; newActivity instantiates guest class from guest DexClassLoader
   - [x] PrivvyInstrumentation delegates all `callActivityOn*` lifecycle callbacks to the original Instrumentation and is installed **only in `:v*` guest processes** (host process skipped). Fixes activities never receiving onCreate when the hook wrapped AndroidJUnitRunner (UI-test hang at "Tests 0/3")
   - [x] VirtualEngine scaffolding: buildDexClassLoader (base + split APKs, unified nativeLibraryDir), extractNativeLibs (TODO extraction impl)
-  - [ ] Standalone APK (OpenCamera) boot test inside `user_0` — needs a test APK + import flow
+  - [x] `GuestApkImporter` + `SpaceAppRegistry` (per-space `apps.json`), APK parsing (label/icon/launch activity/theme), native `.so` extraction
+  - [x] Guest boot path: stub activity → `PrivvyInstrumentation` → DexClassLoader + Resources injection; `guest-test-app` module added; debug import entry point
+  - [x] Verified: import debug APK into `user_0`, launch guest, UI renders, `/sdcard` write redirects to virtual storage (PASS)
+  - [ ] Standalone APK (OpenCamera) boot test inside `user_0`
   - [ ] AssetManager/Resources injection for guest context (Milestone 2)
 
 ### ⬜ Backlog (per spec roadmap)

@@ -3,6 +3,7 @@ package com.privvy.app.engine
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Context
+import dalvik.system.DexClassLoader
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
@@ -26,6 +27,12 @@ object VirtualEngine {
 
     private var instrumentationHooked = false
     private val classLoaderCache = HashMap<String, DexClassLoader>()
+
+    fun clearGuestClassLoader(packageName: String) {
+        synchronized(classLoaderCache) {
+            classLoaderCache.keys.removeIf { it.startsWith("$packageName|") }
+        }
+    }
 
     /** Idempotent: hook ActivityThread.mInstrumentation once per GUEST process. */
     fun hookInstrumentation(context: Context) {

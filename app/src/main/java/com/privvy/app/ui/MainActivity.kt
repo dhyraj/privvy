@@ -5,8 +5,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
@@ -16,32 +18,40 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
+import com.privvy.app.BuildConfig
+import com.privvy.app.core.InstalledApp
+import com.privvy.app.core.SpaceAppRegistry
 import com.privvy.app.core.VirtualStorage
+import com.privvy.app.engine.GuestApkImporter
+import com.privvy.app.engine.VirtualAppLauncher
 import com.privvy.app.security.AuthManager
 import com.privvy.app.security.SessionGuardService
 import com.privvy.app.ui.auth.LockScreen
 import com.privvy.app.ui.home.HomeScreen
 import com.privvy.app.ui.theme.PrivvyTheme
-import java.util.concurrent.Executor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
-/**
- * Single entry point (no disguise). The app is locked until the user passes
- * biometric or PIN authentication; unlocking starts the foreground session
- * notification, and locking/closing stops it.
- */
 class MainActivity : FragmentActivity() {
 
     private var locked by mutableStateOf(true)
     private var notificationPermissionAsked = false
 
+    private val apps = mutableStateListOf<InstalledApp>()
+    private var importing by mutableStateOf(false)
+    private var importMessage by mutableStateOf<String?>(null)
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {
-        // Start regardless: a denied permission hides the drawer notification,
-        // but the foreground session still exists (visible in the FGS task manager).
         startSessionService()
     }
 
@@ -55,21 +65,19 @@ class MainActivity : FragmentActivity() {
         )
         enableEdgeToEdge()
 
+        apps.addAll(SpaceAppRegistry.list(this, 0))
+
         biometricPrompt = BiometricPrompt(
             this,
-            ContextCompat.getMainExecutor(this) as Executor,
+            ContextCompat.getMainExecutor(this),
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     unlock()
                 }
 
-                override fun onAuthenticationFailed() {
-                    // Keep the prompt open; the user can retry.
-                }
+                override fun onAuthenticationFailed() { }
 
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    // Cancelled or locked out — PIN remains available.
-                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { }
             },
         )
 
@@ -92,11 +100,30 @@ class MainActivity : FragmentActivity() {
                             onBiometricRequest = { showBiometricPrompt() },
                         )
                     } else {
+                        val importLauncher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.OpenDocument(),
+                        ) { uri ->
+                            if (uri != null) importApk(uri)
+                        }
                         HomeScreen(
                             spaceName = spaceName,
                             virtualRoot = virtualRoot,
+                            apps = apps,
+                            importing = importing,
+                            importMessage = importMessage,
                             onLock = { lockSession() },
-                            onImportApk = { /* Importer lands next (Milestone 1). */ },
+                            onImportApk = {
+                                importLauncher.launch(
+                                    arrayOf(
+                                        "application/vnd.android.package-archive",
+                                        "application/octet-stream",
+                                        "application/zip",
+                                        "*/*",
+                                    ),
+                                )
+                            },
+                            onImportDebugApk = if (BuildConfig.DEBUG) ({ importDebugApk() }) else null,
+                            onLaunchApp = { app -> launchApp(app) },
                         )
                     }
                 }
@@ -148,6 +175,58 @@ class MainActivity : FragmentActivity() {
             .setNegativeButtonText("Use PIN")
             .build()
         biometricPrompt.authenticate(info)
+    }
+
+    private fun importApk(uri: android.net.Uri) {
+        importing = true
+        importMessage = null
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching { GuestApkImporter.importFromUri(this@MainActivity, uri, 0) }
+            withContext(Dispatchers.Main) {
+                importing = false
+                result.onSuccess { app ->
+                    apps.removeAll { it.packageName == app.packageName }
+                    apps.add(app)
+                    importMessage = "Imported ${app.label}"
+                }.onFailure { t ->
+                    importMessage = "Import failed: ${t.message}"
+                    Log.e("PrivvyImport", "import failed", t)
+                }
+            }
+        }
+    }
+
+    private fun importDebugApk() {
+        val staged = File(filesDir, "import/guest-test-app.apk")
+        if (!staged.exists()) {
+            importMessage = "Debug APK not found at ${staged.absolutePath}. Push it with run-as first."
+            return
+        }
+        importing = true
+        importMessage = null
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching { GuestApkImporter.importFromFile(this@MainActivity, staged, 0) }
+            withContext(Dispatchers.Main) {
+                importing = false
+                result.onSuccess { app ->
+                    apps.removeAll { it.packageName == app.packageName }
+                    apps.add(app)
+                    importMessage = "Imported ${app.label}"
+                }.onFailure { t ->
+                    importMessage = "Import failed: ${t.message}"
+                    Log.e("PrivvyImport", "import failed", t)
+                }
+            }
+        }
+    }
+
+    private fun launchApp(app: InstalledApp) {
+        try {
+            VirtualAppLauncher.launch(this, 0, app)
+        } catch (t: Throwable) {
+            importMessage = "Launch failed: ${t.message}"
+            Log.e("PrivvyLaunch", "launch failed", t)
+        }
     }
 
     override fun onDestroy() {
