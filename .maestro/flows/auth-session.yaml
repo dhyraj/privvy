@@ -1,0 +1,28 @@
+appId: com.privvy.app
+name: PIN setup, unlock, and session notification
+tags:
+  - auth
+  - smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Privvy"
+- assertVisible: "Create a PIN to protect this space"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Session active"
+- assertVisible: "Import APK"
+- tapOn: "Lock and stop session"
+- assertVisible: "Enter your PIN to unlock"

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privvy</string>
+
+    <!-- Internal-only strings -->
+    <string name="tile_label_sync">Sync</string>
+</resources>

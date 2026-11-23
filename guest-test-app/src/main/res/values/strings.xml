@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Guest Test</string>
+    <string name="guest_message">Hello from guest APK</string>
+    <string name="write_button">Write /sdcard test</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="privvy_icon_bg">#1A237E</color>
+    <color name="ic_calculator_bg">#1E88E5</color>
+    <color name="ic_notes_bg">#F4B400</color>
+</resources>

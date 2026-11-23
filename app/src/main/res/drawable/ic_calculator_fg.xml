@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple calculator-grid glyph -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,28h44c3.3,0 6,2.7 6,6v40c0,3.3 -2.7,6 -6,6H32c-3.3,0 -6,-2.7 -6,-6V34C26,30.7 28.7,28 32,28z" />
+    <path
+        android:fillColor="#1E88E5"
+        android:pathData="M32,34h20v12H32zM56,34h20v12H56zM32,50h20v12H32zM56,50h20v12H56zM32,66h20v8H32zM56,66h20v8H56z" />
+</vector>

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "maestro": {
+        "type": "local",
+        // Absolute path: MCP servers inherit OpenCode's environment, which may
+        // not source ~/.zshrc, so a bare "maestro" can be unresolved.
+        "command": ["/Users/dhyraj/.maestro/bin/maestro", "mcp"],
+        "environment": {
+          "MAESTRO_CLI_NO_ANALYTICS": "1"
+        }
+      }
+    }
+  }
+}

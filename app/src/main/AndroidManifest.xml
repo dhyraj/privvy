@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ==== Permissions required by the virtualization engine & session UI (spec FR-01..FR-09) ==== -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Guest apps (Camera/WhatsApp) declare these at runtime via the permission proxy (Milestone 2). -->
+
+    <application
+        android:name=".PrivvyApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher_privvy"
+        android:label="@string/app_name"
+        android:extractNativeLibs="true"
+        android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="false"
+        android:theme="@style/Theme.Privvy"
+        tools:targetApi="36">
+
+        <!-- No disguise: Privvy is the only launcher entry. -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          ============================================================
+          Layer 1 Stub Pool (spec §5.1).
+          Each stub family is pre-declared in ONE isolated process per
+          space slot: android:process=":v0" .. ":v15". Guest components
+          are dynamically mapped onto these stubs by the hook layer.
+          Skeleton declares :v0..:v3; expand to :v15 when the space
+          manager lands (FR-03).
+          ============================================================
+        -->
+
+        <!-- Space 0 (decoy slot) -->
+        <activity android:name=".core.stub.StubActivityStandard_V0" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v0" android:taskAffinity="com.privvy.app.space0" android:excludeFromRecents="true" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V0" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v0" android:taskAffinity="com.privvy.app.space0" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V0" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v0" android:taskAffinity="com.privvy.app.space0" />
+        <service android:name=".core.stub.StubService_V0" android:exported="false" android:process=":v0" />
+        <receiver android:name=".core.stub.StubReceiver_V0" android:exported="false" android:process=":v0" />
+        <provider android:name=".core.stub.StubContentProvider_V0" android:authorities="com.privvy.app.stub.provider.v0" android:exported="false" android:process=":v0" />
+
+        <!-- Space 1 (primary vault slot) -->
+        <activity android:name=".core.stub.StubActivityStandard_V1" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v1" android:taskAffinity="com.privvy.app.space1" android:excludeFromRecents="true" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V1" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v1" android:taskAffinity="com.privvy.app.space1" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V1" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v1" android:taskAffinity="com.privvy.app.space1" />
+        <service android:name=".core.stub.StubService_V1" android:exported="false" android:process=":v1" />
+        <receiver android:name=".core.stub.StubReceiver_V1" android:exported="false" android:process=":v1" />
+        <provider android:name=".core.stub.StubContentProvider_V1" android:authorities="com.privvy.app.stub.provider.v1" android:exported="false" android:process=":v1" />
+
+        <!-- Space 2 -->
+        <activity android:name=".core.stub.StubActivityStandard_V2" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v2" android:taskAffinity="com.privvy.app.space2" android:excludeFromRecents="true" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V2" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v2" android:taskAffinity="com.privvy.app.space2" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V2" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v2" android:taskAffinity="com.privvy.app.space2" />
+        <service android:name=".core.stub.StubService_V2" android:exported="false" android:process=":v2" />
+        <receiver android:name=".core.stub.StubReceiver_V2" android:exported="false" android:process=":v2" />
+        <provider android:name=".core.stub.StubContentProvider_V2" android:authorities="com.privvy.app.stub.provider.v2" android:exported="false" android:process=":v2" />
+
+        <!-- Space 3 -->
+        <activity android:name=".core.stub.StubActivityStandard_V3" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|mcc|mnc|touchscreen" android:exported="false" android:process=":v3" android:taskAffinity="com.privvy.app.space3" android:excludeFromRecents="true" />
+        <activity android:name=".core.stub.StubActivitySingleTop_V3" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTop" android:process=":v3" android:taskAffinity="com.privvy.app.space3" />
+        <activity android:name=".core.stub.StubActivitySingleTask_V3" android:excludeFromRecents="true" android:exported="false" android:launchMode="singleTask" android:process=":v3" android:taskAffinity="com.privvy.app.space3" />
+        <service android:name=".core.stub.StubService_V3" android:exported="false" android:process=":v3" />
+        <receiver android:name=".core.stub.StubReceiver_V3" android:exported="false" android:process=":v3" />
+        <provider android:name=".core.stub.StubContentProvider_V3" android:authorities="com.privvy.app.stub.provider.v3" android:exported="false" android:process=":v3" />
+
+        <!--
+          Layer 3 anti-forensics watcher (FR-08): ACTION_SCREEN_OFF cleanup.
+          Runs in the main process, never the guest processes.
+        -->
+        <service
+            android:name=".security.SessionGuardService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="lock-session-and-kill-virtual-processes-on-screen-off" />
+        </service>
+
+        <!-- FR-10 Quick Settings stealth tile -->
+        <service
+            android:name=".ui.tile.StealthTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_sync"
+            android:label="@string/tile_label_sync"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
