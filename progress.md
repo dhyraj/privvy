@@ -119,3 +119,4 @@ app/src/main/
 | 2026-11-25 | OpenCamera 1.56.2 import + boot (`user_0`, Pixel 8a API 33) | PASS — imported `net.sourceforge.opencamera` (4.7 MB), launched in `:v0`, onboarding dialog + full camera UI (preview, exposure, settings, shutter, video/front camera/gallery) rendered; no FATAL after D-023/D-024 |
 | 2026-11-25 | Guest class-loader isolation / `GuestContext` | PASS — host AppCompat 1.2.0 no longer shadows OpenCamera's bundled AppCompat; inflation resolves `ContentFrameLayout` from the guest loader; guest theme applied |
 | 2026-11-25 | Host permission bridge | PASS — `dumpsys package com.privvy.app` shows `CAMERA`/`RECORD_AUDIO` granted; OpenCamera enters camera UI without `SecurityException` |
+| 2026-11-25 | Maestro flow `.maestro/flows/guest-boot.yaml` | PASS 16/16 — unlock → import debug APK → launch guest test (by resource id) → "Hello from guest APK" → `/sdcard` write PASS |
