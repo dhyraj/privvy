@@ -6,8 +6,10 @@ import android.app.Instrumentation
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.os.Bundle
 import android.os.PersistableBundle
+import java.util.WeakHashMap
 import com.privvy.app.core.stub.StubActivityBase
 
 /**
@@ -30,6 +32,14 @@ class PrivvyInstrumentation(
     private val context: Context,
 ) : Instrumentation() {
 
+    private data class GuestState(
+        val packageName: String,
+        val resources: Resources,
+        val themeId: Int,
+    )
+
+    private val guestStates = WeakHashMap<Activity, GuestState>()
+
     // ------------------------------------------------------------------
     // Guest instantiation
     // ------------------------------------------------------------------
@@ -50,6 +60,7 @@ class PrivvyInstrumentation(
 
             val resources = GuestResources.build(context, apkPaths)
             GuestResources.attach(guest, resources, themeId)
+            guestStates[guest] = GuestState(pkg, resources, themeId)
 
             // Rewrite the stub intent in place so Activity.attach sees the guest
             // component and the framework reports the guest package/name.
@@ -85,14 +96,61 @@ class PrivvyInstrumentation(
     override fun callApplicationOnCreate(app: Application?) =
         original.callApplicationOnCreate(app)
 
-    override fun callActivityOnCreate(activity: Activity, icicle: Bundle?) =
+    override fun callActivityOnCreate(activity: Activity, icicle: Bundle?) {
+        applyGuestContext(activity)
         original.callActivityOnCreate(activity, icicle)
+    }
 
     override fun callActivityOnCreate(
         activity: Activity,
         icicle: Bundle?,
         persistentState: PersistableBundle?,
-    ) = original.callActivityOnCreate(activity, icicle, persistentState)
+    ) {
+        applyGuestContext(activity)
+        original.callActivityOnCreate(activity, icicle, persistentState)
+    }
+
+    /**
+     * Activity.attach has run by now, so mBase exists. Replace it with a
+     * guest-scoped Context before the guest onCreate runs: this makes
+     * LayoutInflater resolve bundled guest libraries through the guest
+     * DexClassLoader and names the package correctly.
+     */
+    private fun applyGuestContext(activity: Activity) {
+        val state = guestStates.remove(activity) ?: return
+        val base = activity.baseContext ?: return
+        val guestContext = GuestContext(
+            base = base,
+            guestResources = state.resources,
+            // Keep the host package for now: runtime permission requests are
+            // validated against the calling UID. Guest package spoofing needs
+            // the Binder permission proxy (Milestone 2), otherwise
+            // requestPermissions() throws SecurityException. Identity is still
+            // isolated via the guest class loader and resources.
+            guestPackageName = base.packageName,
+            guestClassLoader = activity.javaClass.classLoader,
+        )
+        setField(activity, "mBase", guestContext)
+        setField(activity, "mResources", state.resources)
+        if (state.themeId != 0) {
+            try { activity.setTheme(state.themeId) } catch (_: Throwable) { }
+        }
+    }
+
+    private fun setField(target: Any, name: String, value: Any?) {
+        var clazz: Class<*>? = target.javaClass
+        while (clazz != null) {
+            try {
+                val field = clazz.getDeclaredField(name)
+                field.isAccessible = true
+                field.set(target, value)
+                return
+            } catch (_: NoSuchFieldException) {
+                clazz = clazz.superclass
+            }
+        }
+        android.util.Log.w("PrivvyInstrumentation", "field $name not found on ${target.javaClass.name}")
+    }
 
     override fun callActivityOnPostCreate(activity: Activity, icicle: Bundle?) =
         original.callActivityOnPostCreate(activity, icicle)

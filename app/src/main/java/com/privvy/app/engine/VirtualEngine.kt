@@ -78,7 +78,13 @@ object VirtualEngine {
             buildDexClassLoader(
                 apkPaths = apkPaths,
                 nativeLibDir = File(libDir),
-                parentClassLoader = context.classLoader,
+                // The host app's PathClassLoader contains host libraries (e.g.
+                // AppCompat 1.2 via biometric). Guest APKs bundle their own
+                // copies of those libraries; delegating to the host would
+                // shadow them and mismatch resource IDs. Parent to the system
+                // loader so isolated guest classes win, with the framework
+                // still resolvable.
+                parentClassLoader = ClassLoader.getSystemClassLoader(),
                 optimizedDir = optimized,
             ).also { classLoaderCache[key] = it }
         }

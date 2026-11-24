@@ -22,13 +22,6 @@ object GuestResources {
 
     fun attach(activity: Activity, resources: Resources, themeResId: Int) {
         setField(activity, "mResources", resources)
-        val theme = resources.newTheme()
-        if (themeResId != 0) {
-            try { theme.applyStyle(themeResId, true) } catch (_: Throwable) { }
-        }
-        // Leave the activity/window theme alone so the stub's host theme applies.
-        setField(activity, "mTheme", theme)
-        if (themeResId != 0) setField(activity, "mThemeResource", themeResId)
         val base = activity.baseContext
         if (base != null) setField(base, "mResources", resources)
     }

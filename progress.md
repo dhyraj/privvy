@@ -28,6 +28,8 @@ Target: Android 11 (API 30) → Android 16+ (API 36), no root, cross-OEM.
 | D-020 | 2026-11-24 | Native IO hooks are guest-process only: installed in `:v*` processes; host process keeps real filesystem access for APK import. | Required so the importer can read external APKs without being redirected; self-test now runs only in guest processes. |
 | D-021 | 2026-11-24 | APK importer: shared bytes under `virtual/apks/<pkg>/`, per-space `virtual/user_N/apps.json` registry, APK bundle (.apks/.xapk) support, native `.so` extraction, icon + launch activity/theme via a small binary AXML parser. | Keeps installation records per-space while sharing bytes; AXML parser avoids hidden PackageParser APIs across Android 11–16. |
 | D-022 | 2026-11-24 | Guest boot: stub Activity → PrivvyInstrumentation instantiates the guest class from a cached DexClassLoader; guest Resources built from framework-res + guest APKs via reflection on AssetManager; storage writes redirect into `virtual/user_0`. | Verified end-to-end: guest test app shows "Hello from guest APK", and `/sdcard/guest-boot-test.txt` lands in virtual storage (PASS). |
+| D-023 | 2026-11-25 | Guest class loading is parented to the **system** ClassLoader, not the host `PathClassLoader`; after `Activity.attach`, `PrivvyInstrumentation` swaps the Activity's `mBase` for a `GuestContext` that returns guest Resources, a guest `LayoutInflater`, and the guest DexClassLoader. Guest theme is applied before the guest `onCreate`. | The host bundles AppCompat 1.2.0 transitively via `biometric`; OpenCamera bundles a newer AppCompat. Host-first delegation shadowed the guest's AppCompat classes, mismatching styleable/resource IDs (`Resources$NotFoundException`), and the host base context made inflation resolve `ContentFrameLayout` through the host loader (`ClassCastException`). Isolating the guest loader + context fixes both. |
+| D-024 | 2026-11-25 | Temporary permission bridge: the host manifest declares `CAMERA` and `RECORD_AUDIO`, and guest activities keep the **host package name** for runtime permission requests. | `Activity.requestPermissions` is validated against the host UID; a guest package name throws `SecurityException: package=... does not belong to uid=...`. Proper per-space permission/Binder proxy is Milestone 2. Identity spoofing is deferred, not abandoned. |
 
 ---
 
@@ -78,8 +80,10 @@ app/src/main/
   - [x] `GuestApkImporter` + `SpaceAppRegistry` (per-space `apps.json`), APK parsing (label/icon/launch activity/theme), native `.so` extraction
   - [x] Guest boot path: stub activity → `PrivvyInstrumentation` → DexClassLoader + Resources injection; `guest-test-app` module added; debug import entry point
   - [x] Verified: import debug APK into `user_0`, launch guest, UI renders, `/sdcard` write redirects to virtual storage (PASS)
-  - [ ] Standalone APK (OpenCamera) boot test inside `user_0`
-  - [ ] AssetManager/Resources injection for guest context (Milestone 2)
+  - [x] Standalone APK (OpenCamera 1.56.2, F-Droid) boot test inside `user_0`: onboarding + full camera UI render, preview/controls/settings present, process stable
+  - [x] AssetManager/Resources injection for guest context (D-022, D-023)
+  - [x] Guest class-loader isolation + guest `LayoutInflater`/theme application (D-023)
+  - [ ] Guest package identity spoofing + per-space runtime permission proxy (Milestone 2; OpenCamera currently runs under the host package/UID)
 
 ### ⬜ Backlog (per spec roadmap)
 - [ ] Milestone 2: StubService/StubReceiver, IPackageManager + signature spoofing, split-APK mounting, IContentProvider/MediaStore proxy, WhatsApp/Reddit validation
@@ -94,8 +98,9 @@ app/src/main/
 - JNI method names are the contract between `PrivvyNative.kt` and `privvyio.cpp`'s `JNINativeMethod` table — changing either side silently causes `NoSuchMethodError`/`UnsatisfiedLinkError` at runtime (bitten once, now documented in both files).
 - Debug APK is 60 MB (DOBBY_DEBUG on in Debug config + c++_shared + debug symbols). Watch release size against the ≤ 25 MB NFR; consider `DOBBY_GENERATE_SHARED=OFF` static linking later.
 - `libdobby.so` currently ships as a shared lib inside the APK; switch to static if size matters.
-- **Vault entry is unauthenticated** (no PIN/biometric yet). Anyone who knows `7391=` gets in — FR-02/M3 must replace this dev trigger with the real AuthGate before release.
-- Path translation currently also applies in the **host process** (the vault storage demo relies on it). Before APK import, host reads of `/sdcard/...` must bypass translation, or translation must be scoped to `:v*` guest processes.
+- Guest apps currently report the host package name (`com.privvy.app`) and run under Privvy's UID/permissions. OpenCamera's runtime permission requests only work because the host manifest declares `CAMERA`/`RECORD_AUDIO` (D-024). Per-space permission grant/deny and guest package identity need the Binder `IPackageManager`/permission proxies in Milestone 2.
+- Guest class loading is intentionally isolated (system ClassLoader parent). Guests that expect host-provided shared libraries (e.g. GMS) still need explicit class-loader bridges; the current guest test app and OpenCamera both bundle what they need.
+- The binary AXML parser does not yet read `android:theme` reliably (OpenCamera's `launchTheme` came back `0`); the importer now falls back to `PackageInfo.activities[].theme` and `ApplicationInfo.theme`, so theme application works. Fix the parser or drop it once hidden `PackageParser` adapters land.
 
 ## Verification Log
 | Date | What was verified | Result |
@@ -111,3 +116,6 @@ app/src/main/
 | 2026-11-23 | Maestro E2E flow `.maestro/flows/secret-trigger.yaml` | PASS 14/14 — launch → 7391 → "=" → vault opens → storage test → Lock returns to calculator |
 | 2026-11-23 | Virtual storage isolation (UI storage demo) | PASS — wrote `virtual/user_0/sdcard/privvy-demo.txt`; host `/sdcard/privvy-demo.txt` does not exist |
 | 2026-11-23 | Compose instrumented tests after calculator rewrite | PASS 3/3 — no regression |
+| 2026-11-25 | OpenCamera 1.56.2 import + boot (`user_0`, Pixel 8a API 33) | PASS — imported `net.sourceforge.opencamera` (4.7 MB), launched in `:v0`, onboarding dialog + full camera UI (preview, exposure, settings, shutter, video/front camera/gallery) rendered; no FATAL after D-023/D-024 |
+| 2026-11-25 | Guest class-loader isolation / `GuestContext` | PASS — host AppCompat 1.2.0 no longer shadows OpenCamera's bundled AppCompat; inflation resolves `ContentFrameLayout` from the guest loader; guest theme applied |
+| 2026-11-25 | Host permission bridge | PASS — `dumpsys package com.privvy.app` shows `CAMERA`/`RECORD_AUDIO` granted; OpenCamera enters camera UI without `SecurityException` |

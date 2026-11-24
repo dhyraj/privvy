@@ -25,9 +25,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.privvy.app.core.InstalledApp
 import com.privvy.app.io.PrivvyNative
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     spaceName: String,
@@ -51,6 +56,7 @@ fun HomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .semantics { testTagsAsResourceId = true }
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -183,7 +189,10 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        Button(onClick = { onLaunchApp(app) }) {
+                        Button(
+                            onClick = { onLaunchApp(app) },
+                            modifier = Modifier.testTag("launch_${app.packageName}"),
+                        ) {
                             Text("Launch")
                         }
                     }

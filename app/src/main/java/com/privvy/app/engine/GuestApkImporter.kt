@@ -74,7 +74,10 @@ object GuestApkImporter {
         val launchActivity = launchInfo?.activityName
             ?: ApkManifestParser.fallbackLaunchActivity(pkgInfo.activities)
             ?: throw IllegalStateException("No launcher activity found in $packageName")
-        val launchTheme = launchInfo?.themeResId ?: 0
+        val launchActivityInfo = pkgInfo.activities?.firstOrNull { it.name == launchActivity }
+        val launchTheme = launchInfo?.themeResId?.takeIf { it != 0 }
+            ?: launchActivityInfo?.theme?.takeIf { it != 0 }
+            ?: appInfo.theme
 
         // Copy APKs into Privvy's private shared store.
         val appDir = VirtualStorage.appApkDir(context, packageName)

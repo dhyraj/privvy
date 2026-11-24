@@ -13,15 +13,16 @@ tags:
 - assertVisible: "Session active"
 - tapOn: "Import test APK (debug)"
 - extendedWaitUntil:
-    visible: "Imported"
+    visible: ".*Imported.*"
     timeout: 20000
 - assertVisible: "Guest Test"
-- tapOn: "Launch"
+- tapOn:
+    id: "launch_com.privvy.guesttest"
 - extendedWaitUntil:
     visible: "Hello from guest APK"
     timeout: 20000
 - assertVisible: "package=com.privvy.app"
-- tapOn: "Write /sdcard test"
+- tapOn: "WRITE /SDCARD TEST"
 - extendedWaitUntil:
-    visible: "PASS: wrote"
+    visible: "PASS: wrote.*"
     timeout: 10000
