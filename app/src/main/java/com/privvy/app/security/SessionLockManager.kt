@@ -35,6 +35,7 @@ object SessionLockManager {
         val generation = prefs.getLong(KEY_SESSION_GENERATION, 0L) + 1L
         check(prefs.edit().putInt(KEY_ACTIVE_SPACE, spaceId).putLong(KEY_SESSION_GENERATION, generation).commit())
         lockFile(context).delete()
+        GuestDatabaseCrypto.decryptSpace(context, spaceId)
         val tokens = guestTokensDir(context)
         tokens.deleteRecursively()
         check(tokens.mkdirs() || tokens.isDirectory)
@@ -61,6 +62,24 @@ object SessionLockManager {
             Intent(ACTION_SESSION_LOCKED).setPackage(context.packageName),
         )
         killGuestProcesses(context)
+        awaitGuestExit(context)
+        repeat(com.privvy.app.core.VirtualStorage.SPACE_SLOTS) { slot ->
+            GuestDatabaseCrypto.encryptSpace(context, slot)
+        }
+    }
+
+    // Encryption must not race a guest that still holds plaintext database
+    // descriptors; killProcess is asynchronous.
+    private fun awaitGuestExit(context: Context) {
+        val manager = context.getSystemService(ActivityManager::class.java) ?: return
+        val deadline = SystemClock.elapsedRealtime() + 3_000L
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val guestRunning = manager.runningAppProcesses.orEmpty().any {
+                it.processName.startsWith("${context.packageName}:v")
+            }
+            if (!guestRunning) return
+            SystemClock.sleep(100L)
+        }
     }
 
     fun ensureGuestAllowed(context: Context): Boolean {

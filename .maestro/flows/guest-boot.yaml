@@ -42,6 +42,8 @@ tags:
 - assertVisible: "(?s).*PASS: wrote /sdcard/guest-boot-test.txt.*"
 - tapOn: "TEST PREFERENCES"
 - assertVisible: "(?s).*PASS prefs=true value=isolated.*"
+- tapOn: "TEST DATABASE"
+- assertVisible: "(?s).*PASS db=db-isolated rows=1.*"
 - tapOn: "OPEN SECOND ACTIVITY"
 - extendedWaitUntil:
     visible: "(?s).*Second guest activity.*"

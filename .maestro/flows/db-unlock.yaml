@@ -1,0 +1,23 @@
+appId: com.privvy.app
+name: Unlock restores guest database
+tags:
+  - guest
+  - encryption
+---
+- launchApp
+- assertVisible: "Enter your PIN to unlock"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Unlock"
+- extendedWaitUntil:
+    visible: "Session active"
+    timeout: 5000
+- tapOn:
+    id: "launch_com.privvy.guesttest"
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 20000
+- tapOn: "TEST DATABASE"
+- assertVisible: "(?s).*PASS db=db-isolated rows=1.*"

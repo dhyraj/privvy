@@ -78,7 +78,46 @@ class GuestContext(
         return File(dataDir, safeName).apply { mkdirs() }
     }
 
-    override fun getDatabasePath(name: String?): File = File(dataDir, "databases/$name")
+    override fun getDatabasePath(name: String?): File {
+        require(name != null && !name.contains('/')) { "Invalid database name" }
+        return File(dataDir, "databases/$name")
+    }
+
+    // ContextImpl.openOrCreateDatabase resolves the path on itself, never on
+    // this wrapper, so the database entry points must be overridden too.
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: android.database.sqlite.SQLiteDatabase.CursorFactory?,
+    ): android.database.sqlite.SQLiteDatabase = openOrCreateDatabase(name, mode, factory, null)
+
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: android.database.sqlite.SQLiteDatabase.CursorFactory?,
+        errorHandler: android.database.DatabaseErrorHandler?,
+    ): android.database.sqlite.SQLiteDatabase {
+        val file = getDatabasePath(name)
+        file.parentFile?.mkdirs()
+        return android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(file.path, factory, errorHandler)
+    }
+
+    override fun deleteDatabase(name: String): Boolean {
+        val path = getDatabasePath(name).path
+        var deleted = File(path).delete()
+        listOf("-journal", "-wal", "-shm").forEach { suffix ->
+            deleted = File(path + suffix).delete() || deleted
+        }
+        return deleted
+    }
+
+    override fun databaseList(): Array<String> =
+        File(dataDir, "databases").list()
+            ?.filterNot { name ->
+                name.endsWith("-journal") || name.endsWith("-wal") ||
+                    name.endsWith("-shm") || name.endsWith(".pvenc") || name.startsWith(".")
+            }
+            ?.toTypedArray() ?: arrayOf()
 
     override fun getFileStreamPath(name: String?): File = File(filesDir, name.orEmpty())
 

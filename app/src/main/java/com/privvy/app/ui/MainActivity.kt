@@ -45,6 +45,7 @@ import com.privvy.app.engine.GuestPermissionStore
 import com.privvy.app.engine.VirtualAppLauncher
 import com.privvy.app.engine.VirtualEngine
 import com.privvy.app.security.AuthManager
+import com.privvy.app.security.GuestDatabaseCrypto
 import com.privvy.app.security.SessionGuardService
 import com.privvy.app.security.SessionLockManager
 import com.privvy.app.security.VaultCrypto
@@ -525,6 +526,7 @@ class MainActivity : FragmentActivity() {
             SessionLockManager.killGuestProcesses(this)
             repository.wipeSpace(id)
             check(VaultCrypto.wipeSpace(this, id)) { "Could not remove encrypted vault data" }
+            GuestDatabaseCrypto.wipeSpace(this, id)
         }.onSuccess {
             clearVaultPreviews()
             if (id == activeSpaceId) { loadApps(); refreshVault() }
@@ -535,6 +537,7 @@ class MainActivity : FragmentActivity() {
     private fun deleteSpace(id: Int) {
         runCatching {
             check(VaultCrypto.wipeSpace(this, id)) { "Could not remove encrypted vault data" }
+            GuestDatabaseCrypto.wipeSpace(this, id)
             repository.deleteSpace(id)
             spaces = repository.listSpaces()
             if (id == activeSpaceId) {

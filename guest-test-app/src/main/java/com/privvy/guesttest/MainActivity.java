@@ -52,6 +52,7 @@ public class MainActivity extends Activity {
         findViewById(R.id.write_button).setOnClickListener(v -> writeStorageTest());
         findViewById(R.id.prefs_button).setOnClickListener(v -> testPreferences());
         findViewById(R.id.isolation_button).setOnClickListener(v -> readIsolationState());
+        findViewById(R.id.database_button).setOnClickListener(v -> testDatabase());
         findViewById(R.id.activity_button).setOnClickListener(v ->
                 startActivity(new Intent(this, SecondActivity.class)));
         findViewById(R.id.service_button).setOnClickListener(v ->
@@ -98,6 +99,32 @@ public class MainActivity extends Activity {
         boolean written = getSharedPreferences("guest", 0).edit().putString("probe", "isolated").commit();
         String value = getSharedPreferences("guest", 0).getString("probe", "missing");
         storageText.setText("PASS prefs=" + written + " value=" + value + "\n" + storageSummary());
+    }
+
+    private void testDatabase() {
+        try {
+            android.database.sqlite.SQLiteDatabase db =
+                    openOrCreateDatabase("guest.db", MODE_PRIVATE, null);
+            db.execSQL("CREATE TABLE IF NOT EXISTS probe(id INTEGER PRIMARY KEY, value TEXT)");
+            int rows;
+            try (Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM probe", null)) {
+                cursor.moveToFirst();
+                rows = cursor.getInt(0);
+            }
+            if (rows == 0) {
+                db.execSQL("INSERT INTO probe(value) VALUES('db-isolated')");
+                rows = 1;
+            }
+            String value;
+            try (Cursor cursor = db.rawQuery("SELECT value FROM probe LIMIT 1", null)) {
+                cursor.moveToFirst();
+                value = cursor.getString(0);
+            }
+            db.close();
+            storageText.setText("PASS db=" + value + " rows=" + rows);
+        } catch (Throwable error) {
+            storageText.setText("FAIL db: " + error);
+        }
     }
 
     private void readIsolationState() {

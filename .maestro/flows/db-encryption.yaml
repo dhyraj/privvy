@@ -1,0 +1,38 @@
+appId: com.privvy.app
+name: Guest database written then session locked
+tags:
+  - guest
+  - encryption
+---
+- launchApp
+- assertVisible: "Create a PIN to protect this space"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Session active"
+- tapOn: "Import test APK (debug)"
+- extendedWaitUntil:
+    visible: ".*Imported.*"
+    timeout: 20000
+- tapOn:
+    id: "launch_com.privvy.guesttest"
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 20000
+- tapOn: "TEST DATABASE"
+- assertVisible: "(?s).*PASS db=db-isolated rows=1.*"
+- pressKey: BACK
+- assertVisible: "Session active"
+- tapOn: "Lock and stop session"
+- assertVisible: "Enter your PIN to unlock"
