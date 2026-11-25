@@ -131,7 +131,10 @@ object GuestApkImporter {
                 "split_${index}.apk"
             }
             val target = File(appDir, name)
+            target.setWritable(true)
             file.copyTo(target, overwrite = true)
+            // Android 14+ ART refuses to load writable dex files.
+            target.setWritable(false)
             finalApkPaths.add(target.absolutePath)
         }
 

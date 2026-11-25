@@ -120,8 +120,9 @@ class FileSpaceRepository(context: Context) : SpaceRepository {
                             id = id,
                             name = json.optString("name", "Space $id"),
                             createdAt = json.optLong("createdAt", 0L),
-                            pinHashHex = json.optString("pinHashHex").takeIf { it.isNotEmpty() },
-                            pinSaltHex = json.optString("pinSaltHex").takeIf { it.isNotEmpty() },
+                            // optString renders JSONObject.NULL as the literal "null".
+                            pinHashHex = json.optString("pinHashHex").takeIf { it.isNotEmpty() && !json.isNull("pinHashHex") },
+                            pinSaltHex = json.optString("pinSaltHex").takeIf { it.isNotEmpty() && !json.isNull("pinSaltHex") },
                             isDecoy = json.optBoolean("isDecoy", false),
                         ),
                     )

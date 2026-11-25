@@ -18,9 +18,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # and update the pin note below.
 # ---------------------------------------------------------------------------
 set(DOBBY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/dobby)
-set(DOBBY_GENERATE_SHARED OFF CACHE BOOL "" FORCE)
 set(DOBBY_DISABLE_GENERATE_OBJS ON CACHE BOOL "" FORCE)
 add_subdirectory(${DOBBY_DIR} dobby_build)
+
+# 16 KB page-size devices (Android 15+): ELF LOAD segments must be 16 KB aligned.
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
 
 # ---------------------------------------------------------------------------
 # Core sources
@@ -37,7 +39,7 @@ target_include_directories(privvyio PRIVATE
 )
 
 target_link_libraries(privvyio
-    dobby          # static inline-hook engine
+    dobby_static   # static inline-hook engine (vendored Dobby builds both; shared is excluded from packaging)
     log            # __android_log_print
 )
 

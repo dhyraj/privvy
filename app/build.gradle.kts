@@ -41,7 +41,9 @@ android {
             cmake {
                 cppFlags += "-std=c++20 -fvisibility=hidden"
                 arguments += listOf(
-                    "-DANDROID_STL=c++_shared",
+                    // Static STL: NDK 26.3's libc++_shared.so is only 4 KB
+                    // aligned and would fail to load on 16 KB page devices.
+                    "-DANDROID_STL=c++_static",
                     "-DDOBBY_DISABLE_GENERATE_OBJS=ON",
                 )
             }
@@ -78,6 +80,9 @@ android {
         // loaded via DexClassLoader from the extracted lib dir, not mmap'd APK).
         jniLibs {
             useLegacyPackaging = true
+            // Vendored Dobby always builds a shared target; privvyio links the
+            // static one, so the shared lib is dead weight (and 4 KB aligned).
+            excludes += "**/libdobby.so"
         }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

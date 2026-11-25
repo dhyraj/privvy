@@ -128,7 +128,8 @@ internal class MediaMetadataStore(
                 width = obj.optInt("width", 0).coerceAtLeast(0),
                 height = obj.optInt("height", 0).coerceAtLeast(0),
                 isPending = if (obj.optInt("is_pending", 0) != 0) 1 else 0,
-                ownerPackageName = obj.optString("owner_package_name", "").ifEmpty { null },
+                ownerPackageName = obj.optString("owner_package_name", "")
+                    .takeIf { it.isNotEmpty() && !obj.isNull("owner_package_name") },
             )
             if (entry.id <= 0L || !ids.add(entry.id)) {
                 throw IOException("Invalid or duplicate media id ${entry.id}")
