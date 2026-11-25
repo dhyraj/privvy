@@ -49,13 +49,18 @@ object GuestApkImporter {
             }
         }
         return try {
-            importFromFile(context, bundle, spaceId)
+            importFromFile(context, bundle, spaceId, info.nativeLibraryDir)
         } finally {
             bundle.delete()
         }
     }
 
-    fun importFromFile(context: Context, source: File, spaceId: Int): InstalledApp {
+    fun importFromFile(
+        context: Context,
+        source: File,
+        spaceId: Int,
+        nativeLibrarySourceDir: String? = null,
+    ): InstalledApp {
         if (!source.exists()) throw IllegalArgumentException("APK not found: ${source.absolutePath}")
 
         val bundleDir = File(VirtualStorage.importStagingDir(context), "bundle-${System.currentTimeMillis()}")
@@ -132,6 +137,16 @@ object GuestApkImporter {
         // Extract native libs into a unified arm64 directory.
         val nativeLibDir = File(appDir, "lib/arm64")
         VirtualEngine.extractNativeLibs(finalApkPaths, nativeLibDir)
+        nativeLibrarySourceDir?.let { sourceDir ->
+            File(sourceDir).takeIf { it.isDirectory }?.listFiles { file ->
+                file.isFile && file.name.endsWith(".so")
+            }?.forEach { file ->
+                val target = File(nativeLibDir, file.name)
+                file.copyTo(target, overwrite = true)
+                target.setReadable(true, false)
+                target.setExecutable(true, false)
+            }
+        }
 
         // Save icon if possible.
         val iconPath = saveIcon(context, appInfo, pm, appDir)

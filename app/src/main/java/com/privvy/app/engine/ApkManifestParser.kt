@@ -119,7 +119,7 @@ object ApkManifestParser {
                     }
 
                     0x0103 -> { // RES_XML_END_ELEMENT_TYPE
-                        val element = strings.getOrNull(u32(offset + 16)) ?: ""
+                        val element = strings.getOrNull(u32(offset + 20)) ?: ""
                         when (element) {
                             "intent-filter" -> {
                                 if (result == null && inFilter && hasMain && hasLauncher) {

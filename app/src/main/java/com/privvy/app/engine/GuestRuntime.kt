@@ -64,7 +64,14 @@ object GuestRuntimeFactory {
         setField(service, "mBase", runtime.guestContext)
         setField(service, "mResources", runtime.resources)
         setField(service, "mApplication", runtime.application ?: runtime.context.applicationContext as Application)
-        listOf("mToken", "mActivityThread", "mClassName", "mPackageName", "mStartCompatibility").forEach { name ->
+        listOf(
+            "mToken",
+            "mActivityThread",
+            "mActivityManager",
+            "mClassName",
+            "mPackageName",
+            "mStartCompatibility",
+        ).forEach { name ->
             runCatching { field(stub, name)?.let { source -> field(service, name)?.set(service, source.get(stub)) } }
         }
     }

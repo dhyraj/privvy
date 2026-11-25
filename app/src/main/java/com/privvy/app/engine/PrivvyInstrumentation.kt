@@ -1,11 +1,13 @@
 package com.privvy.app.engine
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.Application
 import android.app.Instrumentation
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.os.Bundle
 import android.os.IBinder
@@ -43,11 +45,21 @@ class PrivvyInstrumentation(
 
     private val guestStates = WeakHashMap<Activity, GuestState>()
     private val guestApps = WeakHashMap<Activity, GuestRuntime>()
+    private val permissionDialogs = WeakHashMap<Activity, AlertDialog>()
+    private val hostDeclaredPermissions by lazy {
+        runCatching {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_PERMISSIONS,
+            ).requestedPermissions.orEmpty().toSet()
+        }.getOrDefault(emptySet())
+    }
 
     init {
         runCatching {
             org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions(
                 "Landroid/app/Instrumentation;",
+                "Landroid/app/Activity;",
             )
         }
     }
@@ -106,19 +118,173 @@ class PrivvyInstrumentation(
         options: Bundle?,
     ): Instrumentation.ActivityResult? {
         val runtime = target?.let { guestApps[it] }
-        val guestTarget = intent.component?.packageName == runtime?.app?.packageName ||
-            intent.`package` == runtime?.app?.packageName
-        if (runtime == null || !guestTarget) {
+        if (runtime == null) {
             return invokeOriginalStart(who, contextThread, token, target, intent, requestCode, options)
         }
-        val routed = GuestComponentRouter.activityIntent(
+        val routed = routeGuestActivity(runtime, intent) ?: intent
+        return invokeOriginalStart(context, contextThread, token, target, routed, requestCode, options)
+    }
+
+    fun execStartActivity(
+        who: Context,
+        contextThread: IBinder,
+        token: IBinder?,
+        resultWho: String?,
+        intent: Intent,
+        requestCode: Int,
+        options: Bundle?,
+    ): Instrumentation.ActivityResult? {
+        val runtime = (who as? Activity)?.let { guestApps[it] }
+        if (runtime == null) {
+            return invokeOriginalStart(who, resultWho, contextThread, token, intent, requestCode, options)
+        }
+        if (intent.action == "android.content.pm.action.REQUEST_PERMISSIONS") {
+            return requestGuestPermissions(
+                who as Activity,
+                runtime,
+                intent,
+                resultWho,
+                contextThread,
+                token,
+                requestCode,
+                options,
+            )
+        }
+        val routed = routeGuestActivity(runtime, intent) ?: intent
+        return invokeOriginalStart(context, resultWho, contextThread, token, routed, requestCode, options)
+    }
+
+    private fun requestGuestPermissions(
+        activity: Activity,
+        runtime: GuestRuntime,
+        intent: Intent,
+        resultWho: String?,
+        contextThread: IBinder,
+        token: IBinder?,
+        requestCode: Int,
+        options: Bundle?,
+    ): Instrumentation.ActivityResult? {
+        val permissions = intent.getStringArrayExtra(REQUEST_PERMISSIONS_NAMES).orEmpty()
+        val supported = permissions.filter { permission ->
+            permission in runtime.app.requestedPermissions && permission in hostDeclaredPermissions
+        }.distinct()
+        val decisions = permissions.associateWith { false }.toMutableMap()
+        supported.forEach { decisions[it] = GuestPermissionStore.isGranted(context, runtime.spaceId, runtime.app.packageName, it) }
+        val needsDecision = supported.filter { decisions[it] != true }
+
+        fun finish(granted: Boolean) {
+            activity.window.decorView.post {
+                if (activity.isFinishing || activity.isDestroyed) return@post
+                val hostMissing = supported.filter {
+                    context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+                }
+                if (granted && hostMissing.isNotEmpty()) {
+                    val hostIntent = Intent(intent).apply {
+                        putExtra(REQUEST_PERMISSIONS_NAMES, supported.toTypedArray())
+                        putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+                    }
+                    invokeOriginalStart(context, resultWho, contextThread, token, hostIntent, requestCode, options)
+                    return@post
+                }
+                setField(activity, "mHasCurrentPermissionsRequest", false)
+                val results = IntArray(permissions.size) { index ->
+                    if (granted && decisions[permissions[index]] == true &&
+                        context.checkSelfPermission(permissions[index]) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        PackageManager.PERMISSION_GRANTED
+                    } else {
+                        PackageManager.PERMISSION_DENIED
+                    }
+                }
+                activity.onRequestPermissionsResult(requestCode, permissions, results)
+            }
+        }
+
+        if (needsDecision.isEmpty()) {
+            finish(true)
+            return null
+        }
+
+        var answered = false
+        fun answerPermissionDialog(granted: Boolean) {
+            if (answered) return
+            answered = true
+            supported.forEach { permission ->
+                decisions[permission] = granted
+                GuestPermissionStore.setGranted(
+                    context,
+                    runtime.spaceId,
+                    runtime.app.packageName,
+                    permission,
+                    granted,
+                )
+            }
+            if (!activity.isFinishing && !activity.isDestroyed) finish(granted)
+        }
+
+        val labels = needsDecision.joinToString("\n") { permission ->
+            "• ${permissionLabel(permission)}"
+        }
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle("Allow ${runtime.app.label}?")
+            .setMessage("${runtime.app.label} requests these permissions in this private space:\n\n$labels")
+            .setPositiveButton("Allow", null)
+            .setNegativeButton("Deny", null)
+            .setOnCancelListener {
+                answerPermissionDialog(false)
+            }
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                answerPermissionDialog(true)
+                dialog.dismiss()
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                answerPermissionDialog(false)
+                dialog.dismiss()
+            }
+        }
+        dialog.setOnDismissListener {
+            answerPermissionDialog(false)
+            permissionDialogs.remove(activity)
+        }
+        permissionDialogs[activity] = dialog
+        dialog.show()
+        return null
+    }
+
+    private fun permissionLabel(permission: String): String = runCatching {
+        context.packageManager.getPermissionInfo(permission, 0)
+            .loadLabel(context.packageManager).toString()
+    }.getOrDefault(permission.substringAfterLast('.'))
+
+    fun execStartActivities(
+        who: Context,
+        contextThread: IBinder,
+        token: IBinder?,
+        target: Activity?,
+        intents: Array<Intent>,
+        options: Bundle?,
+    ) {
+        val runtime = target?.let { guestApps[it] }
+        if (runtime == null) {
+            invokeOriginalStarts(who, contextThread, token, target, intents, options)
+            return
+        }
+        val routed = intents.map { routeGuestActivity(runtime, it) ?: it }.toTypedArray()
+        invokeOriginalStarts(context, contextThread, token, target, routed, options)
+    }
+
+    private fun routeGuestActivity(runtime: GuestRuntime, intent: Intent): Intent? {
+        val guestTarget = intent.component?.packageName == runtime.app.packageName ||
+            intent.`package` == runtime.app.packageName
+        if (!guestTarget) return null
+        return GuestComponentRouter.activityIntent(
             context,
             runtime.spaceId,
             runtime.app,
             intent,
-        )
-        routed.flags = routed.flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv()
-        return invokeOriginalStart(context, contextThread, token, target, routed, requestCode, options)
+        ).apply { flags = flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv() }
     }
 
     private fun invokeOriginalStart(
@@ -144,6 +310,55 @@ class PrivvyInstrumentation(
             as? Instrumentation.ActivityResult
     } catch (error: java.lang.reflect.InvocationTargetException) {
         throw error.targetException
+    }
+
+    private fun invokeOriginalStart(
+        who: Context,
+        resultWho: String?,
+        contextThread: IBinder,
+        token: IBinder?,
+        intent: Intent,
+        requestCode: Int,
+        options: Bundle?,
+    ): Instrumentation.ActivityResult? = try {
+        val method = original.javaClass.getMethod(
+            "execStartActivity",
+            Context::class.java,
+            IBinder::class.java,
+            IBinder::class.java,
+            String::class.java,
+            Intent::class.java,
+            Int::class.javaPrimitiveType,
+            Bundle::class.java,
+        )
+        method.invoke(original, who, contextThread, token, resultWho, intent, requestCode, options)
+            as? Instrumentation.ActivityResult
+    } catch (error: java.lang.reflect.InvocationTargetException) {
+        throw error.targetException
+    }
+
+    private fun invokeOriginalStarts(
+        who: Context,
+        contextThread: IBinder,
+        token: IBinder?,
+        target: Activity?,
+        intents: Array<Intent>,
+        options: Bundle?,
+    ) {
+        try {
+            val method = original.javaClass.getMethod(
+                "execStartActivities",
+                Context::class.java,
+                IBinder::class.java,
+                IBinder::class.java,
+                Activity::class.java,
+                Array<Intent>::class.java,
+                Bundle::class.java,
+            )
+            method.invoke(original, who, contextThread, token, target, intents, options)
+        } catch (error: java.lang.reflect.InvocationTargetException) {
+            throw error.targetException
+        }
     }
 
     // ------------------------------------------------------------------
@@ -205,7 +420,7 @@ class PrivvyInstrumentation(
     private fun applyGuestContext(activity: Activity) {
         val state = guestStates.remove(activity) ?: return
         val base = activity.baseContext ?: return
-        val guestContext = state.runtime.guestContext
+        val guestContext = GuestContext(base, state.runtime)
         setField(activity, "mBase", guestContext)
         setField(activity, "mResources", state.runtime.resources)
         if (state.themeId != 0) {
@@ -254,7 +469,10 @@ class PrivvyInstrumentation(
     override fun callActivityOnResume(activity: Activity) = original.callActivityOnResume(activity)
     override fun callActivityOnPause(activity: Activity) = original.callActivityOnPause(activity)
     override fun callActivityOnStop(activity: Activity) = original.callActivityOnStop(activity)
-    override fun callActivityOnDestroy(activity: Activity) = original.callActivityOnDestroy(activity)
+    override fun callActivityOnDestroy(activity: Activity) {
+        permissionDialogs.remove(activity)?.dismiss()
+        original.callActivityOnDestroy(activity)
+    }
     override fun callActivityOnUserLeaving(activity: Activity) =
         original.callActivityOnUserLeaving(activity)
 
@@ -266,4 +484,8 @@ class PrivvyInstrumentation(
         outState: Bundle,
         outPersistentState: PersistableBundle,
     ) = original.callActivityOnSaveInstanceState(activity, outState, outPersistentState)
+
+    internal companion object {
+        const val REQUEST_PERMISSIONS_NAMES = "android.content.pm.extra.REQUEST_PERMISSIONS_NAMES"
+    }
 }

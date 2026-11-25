@@ -55,7 +55,11 @@ object SessionLockManager {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val generation = prefs.getLong(KEY_SESSION_GENERATION, 0L)
         val token = runCatching { File(guestTokensDir(context), "v$spaceId").readText() }.getOrNull()
-        val allowed = !isLocked(context) &&
+        val hostRunning = context.getSystemService(ActivityManager::class.java)
+            ?.runningAppProcesses
+            ?.any { it.processName == context.packageName } == true
+        val allowed = hostRunning &&
+            !isLocked(context) &&
             activeSpaceId(context) == spaceId &&
             generation > 0L &&
             token == "$spaceId:$generation"

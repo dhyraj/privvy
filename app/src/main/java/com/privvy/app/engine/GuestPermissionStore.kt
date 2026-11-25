@@ -33,10 +33,11 @@ object GuestPermissionStore {
         }
     }
 
-    fun checkSelfPermission(context: Context, spaceId: Int, packageName: String, permission: String): Int =
-        if (isGranted(context, spaceId, packageName, permission) &&
-            context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-        ) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+    fun checkSelfPermission(context: Context, spaceId: Int, packageName: String, permission: String): Int {
+        val guestGranted = isGranted(context, spaceId, packageName, permission)
+        val hostGranted = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+        return if (guestGranted && hostGranted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+    }
 
     private fun file(context: Context, spaceId: Int, packageName: String): File {
         val encoded = Base64.encodeToString(packageName.toByteArray(), Base64.NO_WRAP or Base64.URL_SAFE)

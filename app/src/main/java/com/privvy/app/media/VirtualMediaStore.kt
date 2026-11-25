@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
@@ -337,20 +338,30 @@ object VirtualMediaStore {
                         }
                     }
 
+                    val width = if (values.containsKey(MediaStore.MediaColumns.WIDTH)) {
+                        integerValue(values, MediaStore.MediaColumns.WIDTH).coerceAtLeast(0)
+                    } else old.width
+                    val height = if (values.containsKey(MediaStore.MediaColumns.HEIGHT)) {
+                        integerValue(values, MediaStore.MediaColumns.HEIGHT).coerceAtLeast(0)
+                    } else old.height
+                    val isPending = if (values.containsKey(MediaStore.MediaColumns.IS_PENDING)) {
+                        if (integerValue(values, MediaStore.MediaColumns.IS_PENDING) != 0) 1 else 0
+                    } else old.isPending
+                    val dimensions = if (newMimeType.startsWith("image/") &&
+                        (old.isPending != 0 && isPending == 0 || width == 0 || height == 0)
+                    ) {
+                        imageDimensions(newFile)
+                    } else null
+
                     replacements[old.id] = old.copy(
                         displayName = actualName,
                         mimeType = newMimeType,
                         relativePath = newRelativePath,
+                        size = newFile.length(),
                         dateModified = now,
-                        width = if (values.containsKey(MediaStore.MediaColumns.WIDTH)) {
-                            integerValue(values, MediaStore.MediaColumns.WIDTH).coerceAtLeast(0)
-                        } else old.width,
-                        height = if (values.containsKey(MediaStore.MediaColumns.HEIGHT)) {
-                            integerValue(values, MediaStore.MediaColumns.HEIGHT).coerceAtLeast(0)
-                        } else old.height,
-                        isPending = if (values.containsKey(MediaStore.MediaColumns.IS_PENDING)) {
-                            if (integerValue(values, MediaStore.MediaColumns.IS_PENDING) != 0) 1 else 0
-                        } else old.isPending,
+                        width = dimensions?.first ?: width,
+                        height = dimensions?.second ?: height,
+                        isPending = isPending,
                     )
                 }
                 for (index in state.items.indices) {
@@ -542,6 +553,14 @@ object VirtualMediaStore {
             is Number -> value.toLong().takeIf { it > 0L } ?: fallback
             else -> value?.toString()?.toLongOrNull()?.takeIf { it > 0L } ?: fallback
         }
+
+    private fun imageDimensions(file: File): Pair<Int, Int>? {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        return if (options.outWidth > 0 && options.outHeight > 0) {
+            options.outWidth to options.outHeight
+        } else null
+    }
 
     private fun openMode(mode: String): Int = when (mode) {
         "r" -> ParcelFileDescriptor.MODE_READ_ONLY

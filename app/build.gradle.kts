@@ -4,6 +4,19 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val compileHiddenApi by tasks.registering(JavaCompile::class) {
+    source(fileTree("src/hiddenApi/java"))
+    classpath = files(android.bootClasspath)
+    destinationDirectory.set(layout.buildDirectory.dir("generated/hiddenApi/classes"))
+    sourceCompatibility = JavaVersion.VERSION_17.toString()
+    targetCompatibility = JavaVersion.VERSION_17.toString()
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    dependsOn(compileHiddenApi)
+    libraries.from(layout.buildDirectory.dir("generated/hiddenApi/classes"))
+}
+
 android {
     namespace = "com.privvy.app"
     compileSdk = 36
@@ -81,6 +94,7 @@ android {
 }
 
 dependencies {
+    compileOnly(files(layout.buildDirectory.dir("generated/hiddenApi/classes")))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.service)

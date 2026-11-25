@@ -7,6 +7,8 @@ import com.privvy.app.core.VirtualStorage
 import com.privvy.app.engine.VirtualEngine
 import com.privvy.app.io.PrivvyNative
 import com.privvy.app.security.SessionLockManager
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class PrivvyApplication : Application() {
 
@@ -28,6 +30,7 @@ class PrivvyApplication : Application() {
                 android.os.Process.killProcess(android.os.Process.myPid())
                 return
             }
+            startGuestSessionWatchdog()
             if (PrivvyNative.isLoaded) {
                 PrivvyNative.init(applicationInfo.dataDir)
                 PrivvyNative.setActiveSpace(EngineState.spaceId())
@@ -46,6 +49,25 @@ class PrivvyApplication : Application() {
             // metadata) and must not wrap the real Instrumentation.
             Log.i("PrivvyApp", "host process — IO/instrumentation hooks are guest-only")
         }
+    }
+
+    private fun startGuestSessionWatchdog() {
+        val watchdog = Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, "privvy-session-watchdog").apply { isDaemon = true }
+        }
+        watchdog.scheduleWithFixedDelay(
+            {
+                val allowed = runCatching { SessionLockManager.ensureGuestAllowed(this) }.getOrDefault(false)
+                if (!allowed) {
+                    Log.w("PrivvyApp", "guest session is no longer authorized")
+                    EngineState.lock()
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                }
+            },
+            1L,
+            1L,
+            TimeUnit.SECONDS,
+        )
     }
 
     private fun runTranslationSelfTest() {

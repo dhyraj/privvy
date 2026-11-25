@@ -29,7 +29,7 @@ Target: Android 11 (API 30) → Android 16+ (API 36), no root, cross-OEM.
 | D-021 | 2026-11-24 | APK importer: shared bytes under `virtual/apks/<pkg>/`, per-space `virtual/user_N/apps.json` registry, APK bundle (.apks/.xapk) support, native `.so` extraction, icon + launch activity/theme via a small binary AXML parser. | Keeps installation records per-space while sharing bytes; AXML parser avoids hidden PackageParser APIs across Android 11–16. |
 | D-022 | 2026-11-24 | Guest boot: stub Activity → PrivvyInstrumentation instantiates the guest class from a cached DexClassLoader; guest Resources built from framework-res + guest APKs via reflection on AssetManager; storage writes redirect into `virtual/user_0`. | Verified end-to-end: guest test app shows "Hello from guest APK", and `/sdcard/guest-boot-test.txt` lands in virtual storage (PASS). |
 | D-023 | 2026-11-25 | Guest class loading is parented to the **system** ClassLoader, not the host `PathClassLoader`; after `Activity.attach`, `PrivvyInstrumentation` swaps the Activity's `mBase` for a `GuestContext` that returns guest Resources, a guest `LayoutInflater`, and the guest DexClassLoader. Guest theme is applied before the guest `onCreate`. | The host bundles AppCompat 1.2.0 transitively via `biometric`; OpenCamera bundles a newer AppCompat. Host-first delegation shadowed the guest's AppCompat classes, mismatching styleable/resource IDs (`Resources$NotFoundException`), and the host base context made inflation resolve `ContentFrameLayout` through the host loader (`ClassCastException`). Isolating the guest loader + context fixes both. |
-| D-024 | 2026-11-25 | Temporary permission bridge: the host manifest declares `CAMERA` and `RECORD_AUDIO`, and guest activities keep the **host package name** for runtime permission requests. | `Activity.requestPermissions` is validated against the host UID; a guest package name throws `SecurityException: package=... does not belong to uid=...`. Proper per-space permission/Binder proxy is Milestone 2. Identity spoofing is deferred, not abandoned. |
+| D-024 | 2026-11-25 | Per-space runtime permission mediation: guest permission requests are intercepted, Allow/Deny is persisted per space and guest package, and effective access requires both guest and host grants. Missing host permissions are requested for Privvy. | `Activity.requestPermissions` is validated against the host UID; a guest package name throws `SecurityException: package=... does not belong to uid=...`. Only guest-manifest permissions also declared by the host are mediated; guests still share Privvy's UID and direct framework APIs are not fully sandboxed. |
 
 ---
 
@@ -83,7 +83,8 @@ app/src/main/
   - [x] Standalone APK (OpenCamera 1.56.2, F-Droid) boot test inside `user_0`: onboarding + full camera UI render, preview/controls/settings present, process stable
   - [x] AssetManager/Resources injection for guest context (D-022, D-023)
   - [x] Guest class-loader isolation + guest `LayoutInflater`/theme application (D-023)
-  - [ ] Guest package identity spoofing + per-space runtime permission proxy (Milestone 2; OpenCamera currently runs under the host package/UID)
+  - [x] Per-space runtime permission mediation for guest-requested, host-declared permissions (D-024); host/guest grant intersection verified
+  - [ ] Full guest Binder identity spoofing and direct sensitive-API mediation (guests still run under Privvy's host UID)
 
 ### ⬜ Backlog (per spec roadmap)
 - [ ] Milestone 2: StubService/StubReceiver, IPackageManager + signature spoofing, split-APK mounting, IContentProvider/MediaStore proxy, WhatsApp/Reddit validation
@@ -98,7 +99,7 @@ app/src/main/
 - JNI method names are the contract between `PrivvyNative.kt` and `privvyio.cpp`'s `JNINativeMethod` table — changing either side silently causes `NoSuchMethodError`/`UnsatisfiedLinkError` at runtime (bitten once, now documented in both files).
 - Debug APK is 60 MB (DOBBY_DEBUG on in Debug config + c++_shared + debug symbols). Watch release size against the ≤ 25 MB NFR; consider `DOBBY_GENERATE_SHARED=OFF` static linking later.
 - `libdobby.so` currently ships as a shared lib inside the APK; switch to static if size matters.
-- Guest apps currently report the host package name (`com.privvy.app`) and run under Privvy's UID/permissions. OpenCamera's runtime permission requests only work because the host manifest declares `CAMERA`/`RECORD_AUDIO` (D-024). Per-space permission grant/deny and guest package identity need the Binder `IPackageManager`/permission proxies in Milestone 2.
+- Guest apps run under Privvy's host UID and Binder identity. D-024 mediates runtime requests for permissions declared by both the guest and Privvy, but direct sensitive framework APIs can still bypass per-space decisions; malicious guests sharing the UID may reach host-private storage or KeyStore aliases.
 - Guest class loading is intentionally isolated (system ClassLoader parent). Guests that expect host-provided shared libraries (e.g. GMS) still need explicit class-loader bridges; the current guest test app and OpenCamera both bundle what they need.
 - The binary AXML parser does not yet read `android:theme` reliably (OpenCamera's `launchTheme` came back `0`); the importer now falls back to `PackageInfo.activities[].theme` and `ApplicationInfo.theme`, so theme application works. Fix the parser or drop it once hidden `PackageParser` adapters land.
 
@@ -120,3 +121,6 @@ app/src/main/
 | 2026-11-25 | Guest class-loader isolation / `GuestContext` | PASS — host AppCompat 1.2.0 no longer shadows OpenCamera's bundled AppCompat; inflation resolves `ContentFrameLayout` from the guest loader; guest theme applied |
 | 2026-11-25 | Host permission bridge | PASS — `dumpsys package com.privvy.app` shows `CAMERA`/`RECORD_AUDIO` granted; OpenCamera enters camera UI without `SecurityException` |
 | 2026-11-25 | Maestro flow `.maestro/flows/guest-boot.yaml` | PASS 16/16 — unlock → import debug APK → launch guest test (by resource id) → "Hello from guest APK" → `/sdcard` write PASS |
+| 2026-11-25 | Camera2 per-space permission mediation (Pixel 8a API 33) | PASS — guest Allow/Deny persisted independently; host-missing fallback displayed PermissionController for Privvy; optional location Deny did not block camera use |
+| 2026-11-25 | Camera2 capture + virtual MediaStore metadata | PASS — 144,446-byte JPEG captured at `virtual/user_0/sdcard/Pictures/IMG_20261125_173902.jpg`; metadata reports 960×1280, final size, and `IS_PENDING=0` |
+| 2026-11-25 | Instrumentation regression suite (`./gradlew :app:connectedDebugAndroidTest`) | PASS 10/10 — vault crypto, virtual MediaStore, permission extra key, per-space/package persistence, and host/guest grant intersection |

@@ -2,6 +2,7 @@ package com.privvy.app.media
 
 import android.content.ContentProviderOperation
 import android.content.ContentProviderResult
+import android.content.IContentProvider
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
@@ -56,6 +57,19 @@ class VirtualContentResolver(
             "Landroid/content/ContentProviderOperation;",
         )
         installWrapper()
+    }
+
+    protected fun acquireProvider(context: Context, name: String): IContentProvider? {
+        val method = ContentResolver::class.java.getDeclaredMethod(
+            "acquireProvider",
+            Context::class.java,
+            String::class.java,
+        ).apply { isAccessible = true }
+        return try {
+            method.invoke(realResolver, context, name) as IContentProvider?
+        } catch (failure: InvocationTargetException) {
+            throw failure.targetException
+        }
     }
 
     private fun installWrapper() {
@@ -345,7 +359,7 @@ class VirtualContentResolver(
             val mediaId = requireNotNull(target.mediaId) { "openAssetFile requires an item URI: $uri" }
             val descriptor = VirtualMediaStore.openFile(appContext, target.spaceId, mediaId, mode)
             return try {
-                AssetFileDescriptor(descriptor, 0L, descriptor.statSize)
+                AssetFileDescriptor(descriptor, 0L, AssetFileDescriptor.UNKNOWN_LENGTH)
             } catch (t: Throwable) {
                 descriptor.close()
                 throw t
@@ -371,7 +385,7 @@ class VirtualContentResolver(
             }
             val descriptor = VirtualMediaStore.openFile(appContext, target.spaceId, mediaId, "r")
             return try {
-                AssetFileDescriptor(descriptor, 0L, descriptor.statSize)
+                AssetFileDescriptor(descriptor, 0L, AssetFileDescriptor.UNKNOWN_LENGTH)
             } catch (t: Throwable) {
                 descriptor.close()
                 throw t
