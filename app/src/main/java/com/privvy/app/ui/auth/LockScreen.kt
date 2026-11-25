@@ -42,9 +42,12 @@ fun LockScreen(
     hasPin: Boolean,
     biometricAvailable: Boolean,
     onSetPin: (String) -> Boolean,
-    onVerifyPin: (String) -> Boolean,
-    onUnlocked: () -> Unit,
+    onVerifyPin: (String, Int?) -> Int?,
+    onUnlocked: (Int) -> Unit,
     onBiometricRequest: () -> Unit,
+    setupSpaceId: Int = 0,
+    requiredSpaceId: Int? = null,
+    requiredSpaceName: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var mode by remember(hasPin) { mutableStateOf(if (hasPin) LockMode.UNLOCK else LockMode.SETUP) }
@@ -72,7 +75,7 @@ fun LockScreen(
                 if (pin == firstPin) {
                     if (onSetPin(pin)) {
                         resetEntry()
-                        onUnlocked()
+                        onUnlocked(setupSpaceId)
                     } else {
                         error = "Could not store PIN"
                     }
@@ -84,12 +87,13 @@ fun LockScreen(
                 }
             }
             LockMode.UNLOCK -> {
-                if (onVerifyPin(pin)) {
+                val spaceId = onVerifyPin(pin, requiredSpaceId)
+                if (spaceId != null) {
                     resetEntry()
-                    onUnlocked()
+                    onUnlocked(spaceId)
                 } else {
-                    error = "Wrong PIN"
                     resetEntry()
+                    error = "Wrong PIN"
                 }
             }
         }
@@ -119,7 +123,7 @@ fun LockScreen(
             text = when (mode) {
                 LockMode.SETUP -> "Create a PIN to protect this space"
                 LockMode.CONFIRM -> "Confirm your PIN"
-                LockMode.UNLOCK -> "Enter your PIN to unlock"
+                LockMode.UNLOCK -> requiredSpaceName?.let { "Enter PIN for $it" } ?: "Enter your PIN to unlock"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

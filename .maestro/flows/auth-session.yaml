@@ -26,3 +26,21 @@ tags:
 - assertVisible: "Import APK"
 - tapOn: "Lock and stop session"
 - assertVisible: "Enter your PIN to unlock"
+- tapOn: "9"
+- tapOn: "9"
+- tapOn: "9"
+- tapOn: "9"
+- assertVisible: "●●●●"
+- tapOn: "Unlock"
+- extendedWaitUntil:
+    visible: "Wrong PIN"
+    timeout: 5000
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- assertVisible: "●●●●"
+- tapOn: "Unlock"
+- extendedWaitUntil:
+    visible: "Session active"
+    timeout: 5000

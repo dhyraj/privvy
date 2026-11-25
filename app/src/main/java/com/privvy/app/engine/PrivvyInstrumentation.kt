@@ -8,9 +8,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Resources
 import android.os.Bundle
+import android.os.IBinder
 import android.os.PersistableBundle
+import android.view.WindowManager
 import java.util.WeakHashMap
+import com.privvy.app.core.SpaceAppRegistry
 import com.privvy.app.core.stub.StubActivityBase
+import com.privvy.app.security.SessionLockManager
 
 /**
  * PrivvyInstrumentation — replaces ActivityThread.mInstrumentation in :v* guest
@@ -33,12 +37,20 @@ class PrivvyInstrumentation(
 ) : Instrumentation() {
 
     private data class GuestState(
-        val packageName: String,
-        val resources: Resources,
+        val runtime: GuestRuntime,
         val themeId: Int,
     )
 
     private val guestStates = WeakHashMap<Activity, GuestState>()
+    private val guestApps = WeakHashMap<Activity, GuestRuntime>()
+
+    init {
+        runCatching {
+            org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions(
+                "Landroid/app/Instrumentation;",
+            )
+        }
+    }
 
     // ------------------------------------------------------------------
     // Guest instantiation
@@ -52,15 +64,18 @@ class PrivvyInstrumentation(
         val themeId = originalIntent?.getIntExtra(GuestExtras.THEME, 0) ?: 0
 
         if (pkg != null && activityName != null && !apkPaths.isNullOrEmpty()) {
-            val loader = VirtualEngine.guestClassLoader(context, pkg, apkPaths, nativeLibDir)
-            val guest = loader.loadClass(activityName)
+            val app = SpaceAppRegistry.list(context, SessionLockManager.activeSpaceId(context))
+                .firstOrNull { it.packageName == pkg }
+                ?: throw IllegalStateException("Guest $pkg is not installed in this space")
+            val runtime = GuestRuntimeFactory.get(context, app)
+            val guest = runtime.loader.loadClass(activityName)
                 .getDeclaredConstructor()
                 .apply { isAccessible = true }
                 .newInstance() as Activity
 
-            val resources = GuestResources.build(context, apkPaths)
-            GuestResources.attach(guest, resources, themeId)
-            guestStates[guest] = GuestState(pkg, resources, themeId)
+            GuestResources.attach(guest, runtime.resources, themeId)
+            guestStates[guest] = GuestState(runtime, themeId)
+            guestApps[guest] = runtime
 
             // Rewrite the stub intent in place so Activity.attach sees the guest
             // component and the framework reports the guest package/name.
@@ -78,6 +93,57 @@ class PrivvyInstrumentation(
             return guest
         }
         return original.newActivity(cl, className, intent)
+    }
+
+    // Hidden from the SDK classpath, but Activity launches still dispatch to this JVM signature.
+    fun execStartActivity(
+        who: Context,
+        contextThread: IBinder,
+        token: IBinder?,
+        target: Activity?,
+        intent: Intent,
+        requestCode: Int,
+        options: Bundle?,
+    ): Instrumentation.ActivityResult? {
+        val runtime = target?.let { guestApps[it] }
+        val guestTarget = intent.component?.packageName == runtime?.app?.packageName ||
+            intent.`package` == runtime?.app?.packageName
+        if (runtime == null || !guestTarget) {
+            return invokeOriginalStart(who, contextThread, token, target, intent, requestCode, options)
+        }
+        val routed = GuestComponentRouter.activityIntent(
+            context,
+            runtime.spaceId,
+            runtime.app,
+            intent,
+        )
+        routed.flags = routed.flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv()
+        return invokeOriginalStart(context, contextThread, token, target, routed, requestCode, options)
+    }
+
+    private fun invokeOriginalStart(
+        who: Context,
+        contextThread: IBinder,
+        token: IBinder?,
+        target: Activity?,
+        intent: Intent,
+        requestCode: Int,
+        options: Bundle?,
+    ): Instrumentation.ActivityResult? = try {
+        val method = original.javaClass.getMethod(
+            "execStartActivity",
+            Context::class.java,
+            IBinder::class.java,
+            IBinder::class.java,
+            Activity::class.java,
+            Intent::class.java,
+            Int::class.javaPrimitiveType,
+            Bundle::class.java,
+        )
+        method.invoke(original, who, contextThread, token, target, intent, requestCode, options)
+            as? Instrumentation.ActivityResult
+    } catch (error: java.lang.reflect.InvocationTargetException) {
+        throw error.targetException
     }
 
     // ------------------------------------------------------------------
@@ -98,6 +164,7 @@ class PrivvyInstrumentation(
 
     override fun callActivityOnCreate(activity: Activity, icicle: Bundle?) {
         applyGuestContext(activity)
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         original.callActivityOnCreate(activity, icicle)
     }
 
@@ -107,7 +174,26 @@ class PrivvyInstrumentation(
         persistentState: PersistableBundle?,
     ) {
         applyGuestContext(activity)
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         original.callActivityOnCreate(activity, icicle, persistentState)
+    }
+
+    fun callActivityOnRequestPermissionsResult(
+        activity: Activity,
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
+    ) {
+        val runtime = guestApps[activity]
+        if (runtime != null) {
+            permissions.forEachIndexed { index, permission ->
+                if (permission in runtime.app.requestedPermissions) {
+                    val granted = grantResults.getOrNull(index) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    GuestPermissionStore.setGranted(context, runtime.spaceId, runtime.app.packageName, permission, granted)
+                }
+            }
+        }
+        activity.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     /**
@@ -119,19 +205,9 @@ class PrivvyInstrumentation(
     private fun applyGuestContext(activity: Activity) {
         val state = guestStates.remove(activity) ?: return
         val base = activity.baseContext ?: return
-        val guestContext = GuestContext(
-            base = base,
-            guestResources = state.resources,
-            // Keep the host package for now: runtime permission requests are
-            // validated against the calling UID. Guest package spoofing needs
-            // the Binder permission proxy (Milestone 2), otherwise
-            // requestPermissions() throws SecurityException. Identity is still
-            // isolated via the guest class loader and resources.
-            guestPackageName = base.packageName,
-            guestClassLoader = activity.javaClass.classLoader,
-        )
+        val guestContext = state.runtime.guestContext
         setField(activity, "mBase", guestContext)
-        setField(activity, "mResources", state.resources)
+        setField(activity, "mResources", state.runtime.resources)
         if (state.themeId != 0) {
             try { activity.setTheme(state.themeId) } catch (_: Throwable) { }
         }

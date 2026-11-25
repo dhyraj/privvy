@@ -2,6 +2,7 @@ appId: com.privvy.app
 name: Guest APK import and boot
 tags:
   - import
+  - guest
   - smoke
 ---
 - launchApp
@@ -21,8 +22,34 @@ tags:
 - extendedWaitUntil:
     visible: "Hello from guest APK"
     timeout: 20000
-- assertVisible: "package=com.privvy.app"
+- assertVisible: "(?s).*package=com.privvy.guesttest.*"
+- assertVisible: "(?s).*signatures=1.*"
+- assertVisible: "(?s).*Application=created.*"
+- scrollUntilVisible:
+    element: "WRITE /SDCARD TEST"
+    direction: DOWN
 - tapOn: "WRITE /SDCARD TEST"
+- assertVisible: "(?s).*PASS: wrote /sdcard/guest-boot-test.txt.*"
+- tapOn: "TEST PREFERENCES"
+- assertVisible: "(?s).*PASS prefs=true value=isolated.*"
+- tapOn: "OPEN SECOND ACTIVITY"
 - extendedWaitUntil:
-    visible: "PASS: wrote.*"
+    visible: "(?s).*Second guest activity.*"
     timeout: 10000
+- pressKey: BACK
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "START GUEST SERVICE"
+    direction: DOWN
+- tapOn: "START GUEST SERVICE"
+- tapOn: "TEST PREFERENCES"
+- assertVisible: "(?s).*service=created.*"
+- tapOn: "SEND GUEST RECEIVER"
+- tapOn: "TEST PREFERENCES"
+- assertVisible: "(?s).*receiver=received.*"
+- tapOn: "INSERT MEDIASTORE IMAGE"
+- assertVisible: "(?s).*PASS MediaStore=.*"
+- tapOn: "TEST GUEST PROVIDER"
+- assertVisible: "(?s).*PASS provider=com\\.privvy\\.guesttest\\.provider.*rows=2.*"

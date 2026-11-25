@@ -15,6 +15,15 @@ data class InstalledApp(
     val nativeLibDir: String?,
     val iconPath: String?,
     val installedAt: Long,
+    val applicationClassName: String? = null,
+    val requestedPermissions: List<String> = emptyList(),
+    val activityNames: List<String> = emptyList(),
+    val serviceNames: List<String> = emptyList(),
+    val receiverNames: List<String> = emptyList(),
+    val providerNames: List<String> = emptyList(),
+    val providerAuthorities: List<String> = emptyList(),
+    val signatureBase64: List<String> = emptyList(),
+    val targetSdk: Int = 0,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("packageName", packageName)
@@ -27,6 +36,15 @@ data class InstalledApp(
         put("nativeLibDir", nativeLibDir ?: JSONObject.NULL)
         put("iconPath", iconPath ?: JSONObject.NULL)
         put("installedAt", installedAt)
+        put("applicationClassName", applicationClassName ?: JSONObject.NULL)
+        put("requestedPermissions", JSONArray(requestedPermissions))
+        put("activityNames", JSONArray(activityNames))
+        put("serviceNames", JSONArray(serviceNames))
+        put("receiverNames", JSONArray(receiverNames))
+        put("providerNames", JSONArray(providerNames))
+        put("providerAuthorities", JSONArray(providerAuthorities))
+        put("signatureBase64", JSONArray(signatureBase64))
+        put("targetSdk", targetSdk)
     }
 
     companion object {
@@ -51,7 +69,25 @@ data class InstalledApp(
                 nativeLibDir = json.optString("nativeLibDir").takeIf { it.isNotEmpty() },
                 iconPath = json.optString("iconPath").takeIf { it.isNotEmpty() },
                 installedAt = json.optLong("installedAt", 0L),
+                applicationClassName = json.optString("applicationClassName").takeIf { it.isNotEmpty() },
+                requestedPermissions = json.stringList("requestedPermissions"),
+                activityNames = json.stringList("activityNames"),
+                serviceNames = json.stringList("serviceNames"),
+                receiverNames = json.stringList("receiverNames"),
+                providerNames = json.stringList("providerNames"),
+                providerAuthorities = json.stringList("providerAuthorities"),
+                signatureBase64 = json.stringList("signatureBase64"),
+                targetSdk = json.optInt("targetSdk", 0),
             )
+        }
+
+        private fun JSONObject.stringList(name: String): List<String> {
+            val array = optJSONArray(name) ?: return emptyList()
+            return buildList {
+                for (index in 0 until array.length()) {
+                    array.optString(index).takeIf { it.isNotEmpty() }?.let(::add)
+                }
+            }
         }
     }
 }

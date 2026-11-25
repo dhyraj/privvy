@@ -10,7 +10,8 @@ data class VirtualSpace(
     val id: Int,                    // user_0, user_1, ... (process slot :vN)
     val name: String,               // "Decoy", "Vault", user-assigned
     val createdAt: Long,
-    val pinHashHex: String?,        // Argon2id hash binding this space to a PIN (FR-02)
+    val pinHashHex: String?,
+    val pinSaltHex: String? = null,
     val isDecoy: Boolean = false,
 ) {
     /** Files/<privvy>/virtual/user_<id> — see spec §6. */
@@ -36,6 +37,10 @@ data class GuestApp(
 interface SpaceRepository {
     fun listSpaces(): List<VirtualSpace>
     fun createSpace(name: String, pin: CharArray?): VirtualSpace
+    fun renameSpace(id: Int, name: String): VirtualSpace
+    fun setPin(id: Int, pin: String)
+    fun verifyPin(id: Int, pin: String): Boolean
+    fun findSpaceByPin(pin: String): VirtualSpace?
     fun deleteSpace(id: Int)
     fun wipeSpace(id: Int)
 }

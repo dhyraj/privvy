@@ -1,0 +1,72 @@
+appId: com.privvy.app
+name: Encrypted vault lifecycle
+tags:
+  - vault
+  - smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Create a PIN to protect this space"
+    timeout: 10000
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Session active"
+- scrollUntilVisible:
+    element: "Encrypted vault"
+    direction: DOWN
+- tapOn: "Encrypted vault"
+- assertVisible: "Private to this space"
+- tapOn:
+    id: "import_vault_file"
+- tapOn:
+    point: 80, 120
+- tapOn: "Downloads"
+- assertVisible: "vault-sample.txt"
+- tapOn: "vault-sample.txt"
+- extendedWaitUntil:
+    visible: "Imported vault-sample.txt"
+    timeout: 20000
+- assertVisible: "vault-sample.txt"
+- assertVisible: "text/plain"
+- tapOn:
+    id: "back_from_vault"
+- tapOn: "Lock and stop session"
+- extendedWaitUntil:
+    visible: "Enter your PIN to unlock"
+    timeout: 10000
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Unlock"
+- assertVisible: "Session active"
+- scrollUntilVisible:
+    element: "Encrypted vault"
+    direction: DOWN
+- tapOn: "Encrypted vault"
+- assertVisible: "vault-sample.txt"
+- tapOn: "Export"
+- assertVisible: "vault-sample.txt"
+- inputText: "vault-export.txt"
+- tapOn: "SAVE"
+- extendedWaitUntil:
+    visible: "Exported vault-sample.txt"
+    timeout: 20000
+- tapOn: "Delete vault-sample.txt"
+- tapOn:
+    id: "confirm_delete_file"
+- assertVisible: "Deleted vault-sample.txt"
+- assertVisible: "Your vault is empty"

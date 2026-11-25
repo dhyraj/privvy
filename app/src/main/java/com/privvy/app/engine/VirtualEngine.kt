@@ -32,6 +32,7 @@ object VirtualEngine {
         synchronized(classLoaderCache) {
             classLoaderCache.keys.removeIf { it.startsWith("$packageName|") }
         }
+        GuestRuntimeFactory.clear(packageName)
     }
 
     /** Idempotent: hook ActivityThread.mInstrumentation once per GUEST process. */
@@ -52,10 +53,12 @@ object VirtualEngine {
             field.isAccessible = true
             val original = field.get(current) as Instrumentation
             field.set(current, PrivvyInstrumentation(original, context))
+            com.privvy.app.hook.PackageManagerProxy.install(context)
             instrumentationHooked = true
             android.util.Log.i("PrivvyEngine", "ActivityThread.mInstrumentation hooked")
         } catch (t: Throwable) {
             android.util.Log.e("PrivvyEngine", "failed to hook instrumentation", t)
+            throw IllegalStateException("Guest isolation hooks are unavailable", t)
         }
     }
 

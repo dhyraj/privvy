@@ -3,6 +3,8 @@ package com.privvy.app.core.stub
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import androidx.core.content.ContextCompat
+import com.privvy.app.security.SessionGuardService
 
 /**
  * Base stub for all guest Activities (spec §5.1).
@@ -22,6 +24,30 @@ abstract class StubActivityBase : Activity() {
         //  failing fast. Kept visible so the stub wiring can be end-to-end tested.
         val original = intent.getParcelableExtra<Intent>(EXTRA_ORIGINAL)
         android.util.Log.i("PrivvyStub", "stub $localClassName got original=$original")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        notifyGuard(SessionGuardService.ACTION_FOREGROUND)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        notifyGuard(SessionGuardService.ACTION_BACKGROUND)
+    }
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent?): Boolean {
+        if (event?.action == android.view.MotionEvent.ACTION_DOWN) {
+            notifyGuard(SessionGuardService.ACTION_TOUCH)
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
+    private fun notifyGuard(action: String) {
+        ContextCompat.startForegroundService(
+            applicationContext,
+            Intent(applicationContext, SessionGuardService::class.java).setAction(action),
+        )
     }
 
     companion object {

@@ -6,6 +6,7 @@ import com.privvy.app.core.EngineState
 import com.privvy.app.core.VirtualStorage
 import com.privvy.app.engine.VirtualEngine
 import com.privvy.app.io.PrivvyNative
+import com.privvy.app.security.SessionLockManager
 
 class PrivvyApplication : Application() {
 
@@ -22,8 +23,11 @@ class PrivvyApplication : Application() {
         val isGuestProcess = processName != packageName
 
         if (isGuestProcess) {
-            // Guest process (:v0..): install IO hooks for this space and hook
-            // instrumentation so stub launches become guest activities.
+            if (!SessionLockManager.ensureGuestAllowed(this)) {
+                Log.w("PrivvyApp", "locked guest process $processName is exiting")
+                android.os.Process.killProcess(android.os.Process.myPid())
+                return
+            }
             if (PrivvyNative.isLoaded) {
                 PrivvyNative.init(applicationInfo.dataDir)
                 PrivvyNative.setActiveSpace(EngineState.spaceId())
@@ -37,6 +41,7 @@ class PrivvyApplication : Application() {
             }
             VirtualEngine.hookInstrumentation(this)
         } else {
+            if (!SessionLockManager.isLocked(this)) SessionLockManager.lockSession(this)
             // Host process must keep real filesystem access (APK import, app
             // metadata) and must not wrap the real Instrumentation.
             Log.i("PrivvyApp", "host process — IO/instrumentation hooks are guest-only")

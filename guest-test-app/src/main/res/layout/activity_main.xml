@@ -1,37 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp">
+    android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/guest_text"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="28sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/package_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:textSize="14sp" />
-
-    <TextView
-        android:id="@+id/storage_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:orientation="vertical"
         android:gravity="center"
-        android:textSize="14sp" />
+        android:padding="24dp">
 
-    <Button
-        android:id="@+id/write_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/write_button" />
-</LinearLayout>
+        <TextView
+            android:id="@+id/guest_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/package_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textSize="14sp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/storage_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/write_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/write_button" />
+
+        <Button
+            android:id="@+id/prefs_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TEST PREFERENCES" />
+
+        <Button
+            android:id="@+id/activity_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="OPEN SECOND ACTIVITY" />
+
+        <Button
+            android:id="@+id/service_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="START GUEST SERVICE" />
+
+        <Button
+            android:id="@+id/receiver_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SEND GUEST RECEIVER" />
+
+        <Button
+            android:id="@+id/media_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="INSERT MEDIASTORE IMAGE" />
+
+        <Button
+            android:id="@+id/provider_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TEST GUEST PROVIDER" />
+    </LinearLayout>
+</ScrollView>

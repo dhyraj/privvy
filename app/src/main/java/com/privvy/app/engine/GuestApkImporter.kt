@@ -30,6 +30,31 @@ object GuestApkImporter {
         }
     }
 
+    fun importInstalled(context: Context, packageName: String, spaceId: Int): InstalledApp {
+        require(packageName != context.packageName) { "Privvy cannot clone itself" }
+        val info = context.packageManager.getApplicationInfo(packageName, 0)
+        val paths = buildList {
+            info.sourceDir?.let(::add)
+            info.splitSourceDirs?.forEach(::add)
+        }
+        require(paths.isNotEmpty()) { "Installed APK not found" }
+        val bundle = File(VirtualStorage.importStagingDir(context), "installed-$packageName-${System.currentTimeMillis()}.apks")
+        bundle.parentFile?.mkdirs()
+        java.util.zip.ZipOutputStream(bundle.outputStream()).use { output ->
+            paths.forEachIndexed { index, path ->
+                val name = if (index == 0) "base.apk" else "split_$index.apk"
+                output.putNextEntry(java.util.zip.ZipEntry(name))
+                File(path).inputStream().use { it.copyTo(output) }
+                output.closeEntry()
+            }
+        }
+        return try {
+            importFromFile(context, bundle, spaceId)
+        } finally {
+            bundle.delete()
+        }
+    }
+
     fun importFromFile(context: Context, source: File, spaceId: Int): InstalledApp {
         if (!source.exists()) throw IllegalArgumentException("APK not found: ${source.absolutePath}")
 
@@ -44,7 +69,13 @@ object GuestApkImporter {
         @Suppress("DEPRECATION")
         val pkgInfo = pm.getPackageArchiveInfo(
             baseFile.absolutePath,
-            PackageManager.GET_ACTIVITIES or PackageManager.GET_META_DATA,
+            PackageManager.GET_ACTIVITIES or
+                PackageManager.GET_SERVICES or
+                PackageManager.GET_RECEIVERS or
+                PackageManager.GET_PROVIDERS or
+                PackageManager.GET_PERMISSIONS or
+                PackageManager.GET_META_DATA or
+                PackageManager.GET_SIGNING_CERTIFICATES,
         ) ?: throw IllegalStateException("Cannot parse ${baseFile.name}")
 
         val appInfo = pkgInfo.applicationInfo
@@ -116,6 +147,24 @@ object GuestApkImporter {
             nativeLibDir = nativeLibDir.absolutePath,
             iconPath = iconPath,
             installedAt = System.currentTimeMillis(),
+            applicationClassName = appInfo.className,
+            requestedPermissions = pkgInfo.requestedPermissions.orEmpty().toList(),
+            activityNames = pkgInfo.activities.orEmpty().map { it.name },
+            serviceNames = pkgInfo.services.orEmpty().map { it.name },
+            receiverNames = pkgInfo.receivers.orEmpty().map { it.name },
+            providerNames = pkgInfo.providers.orEmpty().map { it.name },
+            providerAuthorities = pkgInfo.providers.orEmpty().flatMap { it.authority?.split(';').orEmpty() },
+            signatureBase64 = if (android.os.Build.VERSION.SDK_INT >= 28) {
+                pkgInfo.signingInfo?.apkContentsSigners.orEmpty().map {
+                    android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                pkgInfo.signatures.orEmpty().map {
+                    android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
+                }
+            },
+            targetSdk = appInfo.targetSdkVersion,
         )
 
         VirtualEngine.clearGuestClassLoader(packageName)

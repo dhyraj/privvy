@@ -1,7 +1,6 @@
 #include "path_translator.h"
 
 #include <cstring>
-#include <cstdlib>
 
 namespace privvyio {
 
@@ -10,74 +9,151 @@ volatile int g_active_space = 0;
 
 namespace {
 
-// "/data/user/0" is the canonical view of /data/data on modern Android.
-bool path_starts_with(const char* p, const char* prefix) {
-    const size_t n = std::strlen(prefix);
-    if (std::strncmp(p, prefix, n) != 0) return false;
-    // If the prefix already ends in '/', the separator is consumed by it.
-    if (n > 0 && prefix[n - 1] == '/') return true;
-    return (p[n] == '/' || p[n] == '\0');
+constexpr char kDataDirPrefix[] = "/data/data/";
+constexpr char kUserDirPrefix[] = "/data/user/";
+constexpr char kEmulatedStoragePrefix[] = "/storage/emulated/";
+constexpr char kPrivvyPackage[] = "com.privvy.app";
+
+bool path_starts_with(const char* path, const char* prefix) {
+    const size_t length = std::strlen(prefix);
+    if (std::strncmp(path, prefix, length) != 0) return false;
+    if (length > 0 && prefix[length - 1] == '/') return true;
+    return path[length] == '/' || path[length] == '\0';
 }
 
-// "<privvy>/virtual/user_<id>"
+std::string normalized_privvy_data_dir() {
+    std::string dir = g_privvy_data_dir;
+    while (dir.size() > 1 && dir.back() == '/') {
+        dir.pop_back();
+    }
+    return dir;
+}
+
+bool valid_component(const char* begin, const char* end) {
+    if (end == nullptr) end = begin + std::strlen(begin);
+    if (begin == end) return false;
+    const size_t length = static_cast<size_t>(end - begin);
+    if (length == 1 && begin[0] == '.') return false;
+    if (length == 2 && begin[0] == '.' && begin[1] == '.') return false;
+    return true;
+}
+
+bool safe_suffix(const char* suffix) {
+    if (suffix == nullptr) return true;
+    for (const char* component = suffix; *component != '\0';) {
+        while (*component == '/') ++component;
+        if (*component == '\0') break;
+        const char* end = std::strchr(component, '/');
+        if (end == nullptr) end = component + std::strlen(component);
+        if (!valid_component(component, end)) return false;
+        component = end;
+    }
+    return true;
+}
+
+TranslatedPath denied_path() {
+    std::string root = normalized_privvy_data_dir();
+    root += "/virtual/user_" + std::to_string(g_active_space) + "/.privvy-denied";
+    return {root, true};
+}
+
 std::string build_virtual_root(int space) {
-    std::string root = g_privvy_data_dir;
+    std::string root = normalized_privvy_data_dir();
     root += "/virtual/user_";
     root += std::to_string(space);
     return root;
 }
 
-// Rewrite the guest data dir family.
 TranslatedPath translate_data_dir(const char* input) {
-    // Matches: /data/data/<pkg>[...], /data/user/0/<pkg>[...],
-    //          /data/user/10/<pkg>... (work-profile style ids -> treat as user space)
-    const char* markers[] = {"/data/data/", "/data/user/0/", "/data/user/"};
+    const char* package = nullptr;
 
-    for (const char* marker : markers) {
-        const char* pkg_start = std::strstr(input, marker);
-        if (pkg_start != input) continue;   // must be a prefix
-
-        const char* pkg = input + std::strlen(marker);
-        // TODO(M1): validate package charset; skip if it is privvy itself.
-        if (is_privvy_internal(input)) {
+    if (path_starts_with(input, kDataDirPrefix)) {
+        package = input + std::strlen(kDataDirPrefix);
+    } else if (path_starts_with(input, kUserDirPrefix)) {
+        const char* profile = input + std::strlen(kUserDirPrefix);
+        const char* profile_end = std::strchr(profile, '/');
+        if (profile_end == nullptr || !valid_component(profile, profile_end)) {
             return {input, false};
         }
-
-        std::string out = build_virtual_root(g_active_space);
-        out += "/data/";
-        out += pkg;   // "<pkg>/rest/of/path" or "<pkg>"
-        return {out, true};
+        package = profile_end + 1;
     }
-    return {input, false};
-}
 
-// Rewrite external storage family (spec FR-06).
-TranslatedPath translate_sdcard(const char* input) {
-    if (is_privvy_internal(input)) {
+    if (package == nullptr) return {input, false};
+    if (!safe_suffix(std::strchr(package, '/'))) return denied_path();
+
+    const char* package_end = std::strchr(package, '/');
+    if (!valid_component(package, package_end)) {
         return {input, false};
     }
+
+    std::string out = build_virtual_root(g_active_space);
+    out += "/data/";
+    if (package_end == nullptr) {
+        out += package;
+    } else {
+        out.append(package, static_cast<size_t>(package_end - package));
+        out += package_end;
+    }
+    return {out, true};
+}
+
+TranslatedPath translate_sdcard(const char* input) {
+    auto build_sdcard_path = [](const char* suffix) {
+        std::string out = build_virtual_root(g_active_space);
+        out += "/sdcard";
+        out += suffix;
+        return out;
+    };
+
     for (const char* alias : kSdcardAliases) {
         if (path_starts_with(input, alias)) {
-            std::string out = build_virtual_root(g_active_space);
-            out += "/sdcard/";
-            out += (input + std::strlen(alias));
-            // Collapse trailing duplicate slashes if alias ended with '/'
-            while (out.size() > 1 && out.back() == '/' && out[out.size() - 2] == '/') {
-                out.pop_back();
-            }
-            return {out, true};
+            const char* suffix = input + std::strlen(alias);
+            return safe_suffix(suffix) ? TranslatedPath{build_sdcard_path(suffix), true} : denied_path();
         }
     }
+
+    if (path_starts_with(input, kEmulatedStoragePrefix)) {
+        const char* profile = input + std::strlen(kEmulatedStoragePrefix);
+        const char* profile_end = std::strchr(profile, '/');
+        if (profile_end == nullptr) {
+            profile_end = profile + std::strlen(profile);
+        }
+        if (!valid_component(profile, profile_end)) {
+            return denied_path();
+        }
+        const char* suffix = *profile_end == '/' ? profile_end : "";
+        return safe_suffix(suffix) ? TranslatedPath{build_sdcard_path(suffix), true} : denied_path();
+    }
+
     return {input, false};
 }
 
 } // namespace
 
 bool is_privvy_internal(const char* path) {
-    if (g_privvy_data_dir.empty()) return false;
-    return path_starts_with(path, g_privvy_data_dir.c_str()) ||
-           // /data/data alias of our own dir
-           std::strncmp(path, "/data/data/com.privvy.app", 24) == 0;
+    if (path == nullptr || path[0] != '/') return false;
+
+    const std::string data_dir = normalized_privvy_data_dir();
+    if (!data_dir.empty() && path_starts_with(path, data_dir.c_str())) {
+        return true;
+    }
+
+    constexpr char data_alias[] = "/data/data/";
+    if (std::strncmp(path, data_alias, sizeof(data_alias) - 1) == 0 &&
+        path_starts_with(path + sizeof(data_alias) - 1, kPrivvyPackage)) {
+        return true;
+    }
+
+    if (std::strncmp(path, kUserDirPrefix, sizeof(kUserDirPrefix) - 1) == 0) {
+        const char* profile = path + sizeof(kUserDirPrefix) - 1;
+        const char* profile_end = std::strchr(profile, '/');
+        if (profile_end != nullptr && valid_component(profile, profile_end) &&
+            path_starts_with(profile_end + 1, kPrivvyPackage)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 std::string virtual_root(int space_id) {
@@ -88,12 +164,22 @@ TranslatedPath translate_path(const char* input) {
     if (input == nullptr || input[0] == '\0') {
         return {input ? input : "", false};
     }
-    // Privvy's own traffic must flow untouched — check FIRST to avoid recursion.
-    if (is_privvy_internal(input)) {
-        return {input, false};
+    // Relative paths must retain their dirfd/cwd semantics.
+    if (input[0] != '/') return {input, false};
+
+    // Check before building any virtual path so already-translated calls made
+    // by bionic wrappers pass straight through instead of redirecting again.
+    if (is_privvy_internal(input)) return {input, false};
+    if (g_privvy_data_dir.empty()) return {input, false};
+
+    if (path_starts_with(input, kDataDirPrefix) || path_starts_with(input, kUserDirPrefix)) {
+        TranslatedPath translated = translate_data_dir(input);
+        return translated.redirected ? translated : denied_path();
     }
-    TranslatedPath t = translate_data_dir(input);
-    if (t.redirected) return t;
+    if (path_starts_with(input, kEmulatedStoragePrefix)) {
+        TranslatedPath translated = translate_sdcard(input);
+        return translated.redirected ? translated : denied_path();
+    }
     return translate_sdcard(input);
 }
 
