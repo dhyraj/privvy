@@ -45,7 +45,7 @@ app/src/main/
     ├── engine/                  # DexClassLoader boot, Instrumentation/LoadedApk injection, resource injection (Layer 1)
     ├── io/                      # JNI bridge to libprivvyio.so, path translation rules (Layer 2)
     ├── security/                # Keystore AES-256-GCM per-space keys, PIN hashing (Layer 3)
-    └── ui/                      # Calculator disguise, PIN pad, mini-launcher, gallery/file manager
+    └── ui/                      # Privvy launcher, PIN/biometric gate, spaces, encrypted vault, QS tile
 ```
 
 ---
@@ -84,12 +84,17 @@ app/src/main/
   - [x] AssetManager/Resources injection for guest context (D-022, D-023)
   - [x] Guest class-loader isolation + guest `LayoutInflater`/theme application (D-023)
   - [x] Per-space runtime permission mediation for guest-requested, host-declared permissions (D-024); host/guest grant intersection verified
+  - [x] Per-space guest files, SharedPreferences, and MediaStore isolation verified across Personal and Work, including preservation after switching back
+  - [x] Session locking on Home/background, screen-off, and inactivity; guest-process termination and Quick Settings tile session state verified
   - [ ] Full guest Binder identity spoofing and direct sensitive-API mediation (guests still run under Privvy's host UID)
 
-### ⬜ Backlog (per spec roadmap)
-- [ ] Milestone 2: StubService/StubReceiver, IPackageManager + signature spoofing, split-APK mounting, IContentProvider/MediaStore proxy, WhatsApp/Reddit validation
-- [ ] Milestone 3: Calculator/Notes disguise (`<activity-alias>`), BiometricPrompt, multi-PIN routing, Keystore encryption, Encrypted Gallery/File Manager, floating pill, ACTION_SCREEN_OFF cleanup
-- [ ] Milestone 4: Cross-OEM QA (Pixel/Samsung/OnePlus/Xiaomi), Work Profile coexistence, memory profiling, APK size ≤ 25 MB
+### ⬜ Remaining Hardening
+- [ ] Full guest Binder identity spoofing and direct sensitive-API mediation
+- [ ] Static manifest receiver registration for arbitrary system broadcasts
+- [ ] Transparent guest database encryption (the imported vault is already encrypted)
+- [ ] Floating overlay return pill (Android Back currently returns to Privvy)
+- [ ] Cross-OEM QA (Pixel/Samsung/OnePlus/Xiaomi) and active Work Profile coexistence
+- [ ] Memory profiling and release APK size ≤ 25 MB
 
 ---
 
@@ -101,6 +106,7 @@ app/src/main/
 - `libdobby.so` currently ships as a shared lib inside the APK; switch to static if size matters.
 - Guest apps run under Privvy's host UID and Binder identity. D-024 mediates runtime requests for permissions declared by both the guest and Privvy, but direct sensitive framework APIs can still bypass per-space decisions; malicious guests sharing the UID may reach host-private storage or KeyStore aliases.
 - Guest class loading is intentionally isolated (system ClassLoader parent). Guests that expect host-provided shared libraries (e.g. GMS) still need explicit class-loader bridges; the current guest test app and OpenCamera both bundle what they need.
+- Static manifest receiver registration for arbitrary system broadcasts and virtual MediaStore `applyBatch` remain unsupported.
 - The binary AXML parser does not yet read `android:theme` reliably (OpenCamera's `launchTheme` came back `0`); the importer now falls back to `PackageInfo.activities[].theme` and `ApplicationInfo.theme`, so theme application works. Fix the parser or drop it once hidden `PackageParser` adapters land.
 
 ## Verification Log
@@ -120,7 +126,18 @@ app/src/main/
 | 2026-11-25 | OpenCamera 1.56.2 import + boot (`user_0`, Pixel 8a API 33) | PASS — imported `net.sourceforge.opencamera` (4.7 MB), launched in `:v0`, onboarding dialog + full camera UI (preview, exposure, settings, shutter, video/front camera/gallery) rendered; no FATAL after D-023/D-024 |
 | 2026-11-25 | Guest class-loader isolation / `GuestContext` | PASS — host AppCompat 1.2.0 no longer shadows OpenCamera's bundled AppCompat; inflation resolves `ContentFrameLayout` from the guest loader; guest theme applied |
 | 2026-11-25 | Host permission bridge | PASS — `dumpsys package com.privvy.app` shows `CAMERA`/`RECORD_AUDIO` granted; OpenCamera enters camera UI without `SecurityException` |
-| 2026-11-25 | Maestro flow `.maestro/flows/guest-boot.yaml` | PASS 16/16 — unlock → import debug APK → launch guest test (by resource id) → "Hello from guest APK" → `/sdcard` write PASS |
+| 2026-11-25 | Maestro flow `.maestro/flows/guest-boot.yaml` | PASS — import, launch, virtual package/signature identity, `/sdcard` and preferences, second Activity, Service, Receiver, MediaStore image, and guest ContentProvider |
 | 2026-11-25 | Camera2 per-space permission mediation (Pixel 8a API 33) | PASS — guest Allow/Deny persisted independently; host-missing fallback displayed PermissionController for Privvy; optional location Deny did not block camera use |
 | 2026-11-25 | Camera2 capture + virtual MediaStore metadata | PASS — 144,446-byte JPEG captured at `virtual/user_0/sdcard/Pictures/IMG_20261125_173902.jpg`; metadata reports 960×1280, final size, and `IS_PENDING=0` |
 | 2026-11-25 | Instrumentation regression suite (`./gradlew :app:connectedDebugAndroidTest`) | PASS 10/10 — vault crypto, virtual MediaStore, permission extra key, per-space/package persistence, and host/guest grant intersection |
+| 2026-11-25 | Instrumentation regression suite after permission/vault hardening (`./gradlew :app:connectedDebugAndroidTest`) | PASS 13/13 (final regression) — host-declared permission filtering, permission cleanup isolation, per-space vault key cleanup, and existing vault/MediaStore coverage |
+| 2026-11-25 | App + guest fixture build and lint | BUILD SUCCESSFUL — `assembleDebug`, `assembleDebugAndroidTest`, and both `lintDebug` tasks; zero lint errors |
+| 2026-11-25 | JVM unit test tasks (`./gradlew :app:testDebugUnitTest :guest-test-app:testDebugUnitTest`) | BUILD SUCCESSFUL — both tasks complete; no JVM unit-test sources are currently present |
+| 2026-11-25 | Fresh reinstall after instrumentation tests | PASS — debug APK cold-launched on the emulator and displayed the Privvy PIN setup screen |
+| 2026-11-25 | Maestro flow `.maestro/flows/permissions.yaml` | PASS (final regression) — per-app manager, guest Deny persistence, re-Allow, and `CAMERA granted` with host permission pre-granted; PermissionController fallback also verified separately by ADB |
+| 2026-11-25 | Session lifecycle and Quick Settings tile | PASS — Home/background and screen-off created the lock and terminated `:v0`; six-minute idle test locked after five minutes; tile changed between `Tap to sync` and `Sync active` and opened the correct session state |
+| 2026-11-25 | Maestro flow `.maestro/flows/spaces.yaml` | PASS — create, rename, PIN change, wrong-PIN rejection, wipe, delete, and Personal-space app preservation |
+| 2026-11-25 | Maestro flow `.maestro/flows/space-isolation.yaml` | PASS — Work started with `prefs=missing`, `sdcard=missing`, `media=0`; Personal retained `prefs=isolated`, `sdcard=guest-wrote-this`, `media=1` after switching back |
+| 2026-11-25 | Vault Open/preview and stored ciphertext inspection | PASS — external HTML Viewer displayed the exact sample plaintext; vault ciphertext and encrypted index contained no sample plaintext |
+| 2026-11-25 | Maestro flow `.maestro/flows/vault.yaml` | PASS — import, Open dispatch, empty Work vault, preserved Personal vault, export, delete, and final empty state |
+| 2026-11-25 | Maestro flow `.maestro/flows/auth-session.yaml` (final regression) | PASS — initial PIN setup, wrong-PIN rejection, successful unlock, and active-session state |

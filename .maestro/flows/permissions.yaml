@@ -1,0 +1,65 @@
+appId: com.privvy.app
+name: Guest permission manager and request flow
+tags:
+  - permissions
+  - guest
+  - smoke
+---
+- launchApp
+- assertVisible: "Create a PIN to protect this space"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Session active"
+- tapOn: "Import test APK (debug)"
+- extendedWaitUntil:
+    visible: ".*Imported.*"
+    timeout: 20000
+- tapOn:
+    id: "permissions_com.privvy.guesttest"
+- assertVisible: "Permissions for Guest Test"
+- assertVisible: "take pictures and videos"
+- tapOn: "Save"
+- assertVisible: "Permissions updated for Guest Test"
+- tapOn:
+    id: "launch_com.privvy.guesttest"
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "REQUEST CAMERA PERMISSION"
+    direction: DOWN
+- tapOn: "REQUEST CAMERA PERMISSION"
+- assertVisible: "Allow Guest Test?"
+- tapOn: "Deny"
+- assertVisible: "CAMERA denied"
+- pressKey: BACK
+- assertVisible: "Session active"
+- tapOn:
+    id: "permissions_com.privvy.guesttest"
+- tapOn: "take pictures and videos"
+- tapOn: "Save"
+- assertVisible: "Permissions updated for Guest Test"
+- tapOn:
+    id: "launch_com.privvy.guesttest"
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "REQUEST CAMERA PERMISSION"
+    direction: DOWN
+- tapOn: "REQUEST CAMERA PERMISSION"
+- extendedWaitUntil:
+    visible: "CAMERA granted"
+    timeout: 10000

@@ -33,6 +33,21 @@ object GuestPermissionStore {
         }
     }
 
+    fun clear(context: Context, spaceId: Int, packageName: String) = synchronized(lock) {
+        val file = file(context, spaceId, packageName)
+        if (file.exists()) check(file.delete()) { "Cannot remove guest permission decisions" }
+    }
+
+    fun supportedRuntimePermissions(context: Context, permissions: List<String>): List<String> {
+        val hostDeclared = runCatching {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_PERMISSIONS,
+            ).requestedPermissions.orEmpty().toSet()
+        }.getOrDefault(emptySet())
+        return permissions.distinct().filter { it in hostDeclared && isRuntimePermission(context, it) }
+    }
+
     fun checkSelfPermission(context: Context, spaceId: Int, packageName: String, permission: String): Int {
         val guestGranted = isGranted(context, spaceId, packageName, permission)
         val hostGranted = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED

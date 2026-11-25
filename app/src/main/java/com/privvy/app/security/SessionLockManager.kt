@@ -11,11 +11,21 @@ import java.io.File
 object SessionLockManager {
 
     const val ACTION_SESSION_LOCKED = "com.privvy.app.action.SESSION_LOCKED"
+    const val ACTION_SESSION_STARTED = "com.privvy.app.action.SESSION_STARTED"
     private const val PREFS = "privvy_session"
     private const val KEY_ACTIVE_SPACE = "active_space"
     private const val KEY_SESSION_GENERATION = "session_generation"
 
     fun isLocked(context: Context): Boolean = lockFile(context).exists()
+
+    fun isSessionActive(context: Context): Boolean {
+        if (isLocked(context)) return false
+        val spaceId = activeSpaceId(context)
+        val generation = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(KEY_SESSION_GENERATION, 0L)
+        val token = runCatching { File(guestTokensDir(context), "v$spaceId").readText() }.getOrNull()
+        return generation > 0L && token == "$spaceId:$generation"
+    }
 
     fun activeSpaceId(context: Context): Int =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_ACTIVE_SPACE, 0)
@@ -32,6 +42,9 @@ object SessionLockManager {
             File(tokens, "v$slot").writeText("$slot:$generation")
         }
         EngineState.unlock()
+        context.sendBroadcast(
+            Intent(ACTION_SESSION_STARTED).setPackage(context.packageName),
+        )
     }
 
     fun lockSession(context: Context) {

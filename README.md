@@ -18,7 +18,7 @@ app/src/main/
     ├── engine/              # DexClassLoader boot + Instrumentation/LoadedApk injection
     ├── io/                  # JNI bridge to libprivvyio.so
     ├── security/            # Keystore keys, PIN hashing, session guard (Layer 3)
-    └── ui/                  # Calculator disguise, PIN gate, mini-launcher, tile
+    └── ui/                  # PIN gate, spaces, mini-launcher, encrypted vault, QS tile
 ```
 
 ## Building
@@ -33,4 +33,24 @@ ABI: `arm64-v8a` only for now. Android 11 (API 30) minimum.
 
 ## Status
 
-Milestone 1 in progress — see `progress.md`.
+Functional prototype with guest APK import/launch, per-space app data and
+MediaStore, runtime permission mediation, encrypted vault operations, PIN and
+biometric unlock, automatic session locking, and a Quick Settings tile.
+End-to-end flows are verified on a Pixel 8a API 33 emulator; see `progress.md`.
+The original floating overlay pill is not implemented; Android Back returns from
+a guest to Privvy's space grid.
+
+## Security boundary
+
+- Privvy is rootless. Guest APKs share Privvy's Linux UID and Binder identity;
+  this is isolation inside one app, not a device-level sandbox. Malicious
+  guests sharing the UID may reach host-private files or KeyStore aliases.
+- Per-space permission decisions cover runtime permissions declared by both
+  the guest and Privvy. Direct sensitive framework APIs are not fully mediated.
+- Only files imported into the encrypted vault are encrypted. Guest app data,
+  preferences, databases, and virtual MediaStore files are not automatically
+  encrypted.
+- Static manifest receiver registration for arbitrary broadcasts and virtual
+  MediaStore `applyBatch` remain unsupported.
+- Four virtual space slots and `arm64-v8a` are currently supported. Cross-OEM
+  and active Work Profile behavior remain unverified.

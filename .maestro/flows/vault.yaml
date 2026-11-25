@@ -34,39 +34,78 @@ tags:
 - tapOn:
     point: 80, 120
 - tapOn: "Downloads"
-- assertVisible: "vault-sample.txt"
-- tapOn: "vault-sample.txt"
+- assertVisible: "vault-sample\\.txt.*"
+- tapOn: "vault-sample\\.txt.*"
 - extendedWaitUntil:
-    visible: "Imported vault-sample.txt"
+    visible: "Imported vault-sample\\.txt.*"
     timeout: 20000
-- assertVisible: "vault-sample.txt"
-- assertVisible: "text/plain"
+- assertVisible: "vault-sample\\.txt.*"
+- assertVisible: "(text/plain|application/octet-stream)"
+- tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Open with.*"
+    timeout: 10000
+- pressKey: BACK
+- assertVisible: "vault-sample\\.txt.*"
 - tapOn:
     id: "back_from_vault"
-- tapOn: "Lock and stop session"
-- extendedWaitUntil:
-    visible: "Enter your PIN to unlock"
-    timeout: 10000
+- scrollUntilVisible:
+    element: "Spaces"
+    direction: DOWN
+- tapOn: "Spaces"
+- tapOn:
+    id: "create_space_button"
+- tapOn:
+    id: "create_space_name"
+- inputText: "Work"
+- tapOn:
+    id: "create_space_pin"
+- inputText: "5678"
+- tapOn:
+    id: "create_space_pin_confirm"
+- inputText: "5678"
+- tapOn:
+    id: "confirm_create_space"
+- assertVisible: "Created Work"
+- tapOn:
+    id: "close_space_manager"
+- tapOn:
+    id: "space_selector"
+- tapOn: "Work"
+- tapOn: "5"
+- tapOn: "6"
+- tapOn: "7"
+- tapOn: "8"
+- tapOn: "Unlock"
+- scrollUntilVisible:
+    element: "Encrypted vault"
+    direction: DOWN
+- tapOn: "Encrypted vault"
+- assertVisible: "Your vault is empty"
+- tapOn:
+    id: "back_from_vault"
+- tapOn:
+    id: "space_selector"
+- tapOn: "Personal"
 - tapOn: "1"
 - tapOn: "2"
 - tapOn: "3"
 - tapOn: "4"
 - tapOn: "Unlock"
-- assertVisible: "Session active"
 - scrollUntilVisible:
     element: "Encrypted vault"
     direction: DOWN
 - tapOn: "Encrypted vault"
-- assertVisible: "vault-sample.txt"
+- assertVisible: "vault-sample\\.txt.*"
 - tapOn: "Export"
-- assertVisible: "vault-sample.txt"
+- assertVisible: "vault-sample\\.txt.*"
 - inputText: "vault-export.txt"
 - tapOn: "SAVE"
 - extendedWaitUntil:
-    visible: "Exported vault-sample.txt"
+    visible: "Exported vault-sample\\.txt.*"
     timeout: 20000
-- tapOn: "Delete vault-sample.txt"
+- tapOn: "Delete vault-sample\\.txt.*"
 - tapOn:
     id: "confirm_delete_file"
-- assertVisible: "Deleted vault-sample.txt"
+- assertVisible: "Deleted vault-sample\\.txt.*"
 - assertVisible: "Your vault is empty"

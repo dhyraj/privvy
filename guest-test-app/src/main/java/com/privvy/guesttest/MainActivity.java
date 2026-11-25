@@ -1,10 +1,12 @@
 package com.privvy.guesttest;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ContentProviderOperation;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,13 +15,16 @@ import android.view.Window;
 import android.widget.Button;
 import android.widget.TextView;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.io.FileWriter;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
 
+    private static final int CAMERA_REQUEST = 41;
     private TextView storageText;
 
     @Override
@@ -46,6 +51,7 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.write_button).setOnClickListener(v -> writeStorageTest());
         findViewById(R.id.prefs_button).setOnClickListener(v -> testPreferences());
+        findViewById(R.id.isolation_button).setOnClickListener(v -> readIsolationState());
         findViewById(R.id.activity_button).setOnClickListener(v ->
                 startActivity(new Intent(this, SecondActivity.class)));
         findViewById(R.id.service_button).setOnClickListener(v ->
@@ -56,6 +62,17 @@ public class MainActivity extends Activity {
         });
         findViewById(R.id.media_button).setOnClickListener(v -> testMediaStore());
         findViewById(R.id.provider_button).setOnClickListener(v -> testProvider());
+        findViewById(R.id.permission_button).setOnClickListener(v ->
+                requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST));
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_REQUEST) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            storageText.setText(granted ? "CAMERA granted" : "CAMERA denied");
+        }
     }
 
     private void writeStorageTest() {
@@ -81,6 +98,39 @@ public class MainActivity extends Activity {
         boolean written = getSharedPreferences("guest", 0).edit().putString("probe", "isolated").commit();
         String value = getSharedPreferences("guest", 0).getString("probe", "missing");
         storageText.setText("PASS prefs=" + written + " value=" + value + "\n" + storageSummary());
+    }
+
+    private void readIsolationState() {
+        String preferences = getSharedPreferences("guest", 0).getString("probe", "missing");
+        String sdcard = "missing";
+        File file = new File("/sdcard/guest-boot-test.txt");
+        if (file.exists()) {
+            try (FileInputStream input = new FileInputStream(file);
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[1024];
+                int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                sdcard = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+            } catch (Throwable error) {
+                sdcard = "error: " + error;
+            }
+        }
+        int media = 0;
+        try (Cursor cursor = getContentResolver().query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                new String[]{MediaStore.Images.Media.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null) {
+                int nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME);
+                while (cursor.moveToNext()) {
+                    String name = cursor.getString(nameIndex);
+                    if (name != null && name.startsWith("guest-image-")) media++;
+                }
+            }
+        } catch (Throwable error) {
+            media = -1;
+        }
+        storageText.setText("ISOLATION prefs=" + preferences
+                + "\nsdcard=" + sdcard + "\nmedia=" + media);
     }
 
     private void testProvider() {

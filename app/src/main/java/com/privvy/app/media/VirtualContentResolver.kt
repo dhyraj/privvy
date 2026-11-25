@@ -1,5 +1,6 @@
 package com.privvy.app.media
 
+import android.annotation.SuppressLint
 import android.content.ContentProviderOperation
 import android.content.ContentProviderResult
 import android.content.IContentProvider
@@ -42,10 +43,7 @@ class VirtualContentResolver(
     private val appContext = context.applicationContext ?: context
     private val realResolver = appContext.contentResolver
     private val delegateWrapper: Any by lazy {
-        ContentResolver::class.java.getDeclaredField("mWrapped")
-            .apply { isAccessible = true }
-            .get(realResolver)
-            .let(::checkNotNull)
+        contentInterfaceField().get(realResolver).let(::checkNotNull)
     }
 
     init {
@@ -72,9 +70,12 @@ class VirtualContentResolver(
         }
     }
 
+    @SuppressLint("BlockedPrivateApi")
+    private fun contentInterfaceField(): java.lang.reflect.Field =
+        ContentResolver::class.java.getDeclaredField("mWrapped").apply { isAccessible = true }
+
     private fun installWrapper() {
-        val field = ContentResolver::class.java.getDeclaredField("mWrapped")
-        field.isAccessible = true
+        val field = contentInterfaceField()
         val wrapperType = field.type
         val wrapper = Proxy.newProxyInstance(
             wrapperType.classLoader ?: javaClass.classLoader,

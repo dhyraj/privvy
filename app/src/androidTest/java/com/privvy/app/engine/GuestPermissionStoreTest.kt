@@ -89,6 +89,34 @@ class GuestPermissionStoreTest {
     }
 
     @Test
+    fun onlyExposesHostDeclaredRuntimePermissions() {
+        val supported = GuestPermissionStore.supportedRuntimePermissions(
+            context,
+            listOf(
+                Manifest.permission.CAMERA,
+                Manifest.permission.INTERNET,
+                Manifest.permission.READ_CALENDAR,
+                Manifest.permission.CAMERA,
+            ),
+        )
+
+        assertEquals(listOf(Manifest.permission.CAMERA), supported)
+    }
+
+    @Test
+    fun clearRemovesOnlyTheSelectedPackageAndSpaceDecisions() {
+        GuestPermissionStore.setGranted(context, 0, GUEST, Manifest.permission.CAMERA, true)
+        GuestPermissionStore.setGranted(context, 1, GUEST, Manifest.permission.CAMERA, true)
+        GuestPermissionStore.setGranted(context, 0, OTHER_GUEST, Manifest.permission.CAMERA, true)
+
+        GuestPermissionStore.clear(context, 0, GUEST)
+
+        assertFalse(GuestPermissionStore.isGranted(context, 0, GUEST, Manifest.permission.CAMERA))
+        assertTrue(GuestPermissionStore.isGranted(context, 1, GUEST, Manifest.permission.CAMERA))
+        assertTrue(GuestPermissionStore.isGranted(context, 0, OTHER_GUEST, Manifest.permission.CAMERA))
+    }
+
+    @Test
     fun requiresBothHostAndGuestGrants() {
         GuestPermissionStore.setGranted(context, 0, GUEST, Manifest.permission.CAMERA, true)
 

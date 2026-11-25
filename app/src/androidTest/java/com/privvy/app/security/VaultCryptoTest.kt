@@ -106,6 +106,25 @@ class VaultCryptoTest {
     }
 
     @Test
+    fun wipeDeletesVaultDataAndOnlyTheSelectedSpaceKey() {
+        val personalSource = source("wipe-personal.txt", "personal".toByteArray())
+        val workSource = source("wipe-work.txt", "work".toByteArray())
+        VaultCrypto.importFile(context, 0, personalSource, personalSource.name, "text/plain")
+        VaultCrypto.importFile(context, 1, workSource, workSource.name, "text/plain")
+        val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        assertTrue("Personal key was not created", keyStore.containsAlias("privvy.vault.space.0.v2"))
+        assertTrue("Work key was not created", keyStore.containsAlias("privvy.vault.space.1.v2"))
+
+        assertTrue(VaultCrypto.wipeSpace(context, 0))
+
+        assertTrue(VaultCrypto.list(context, 0).isEmpty())
+        assertFalse("Personal key survived wipe", keyStore.containsAlias("privvy.vault.space.0.v2"))
+        assertTrue("Work key was removed", keyStore.containsAlias("privvy.vault.space.1.v2"))
+        assertArrayEquals("work".toByteArray(), VaultCrypto.readBytes(context, VaultCrypto.list(context, 1).single()))
+        assertTrue(VaultCrypto.wipeSpace(context, 1))
+    }
+
+    @Test
     fun enforcesSessionAuthorization() {
         val source = source("unauthorized.txt", "secret".toByteArray())
 

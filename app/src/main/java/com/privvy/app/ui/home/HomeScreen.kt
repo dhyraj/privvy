@@ -86,6 +86,7 @@ fun HomeScreen(
     onCloneInstalled: () -> Unit,
     onImportDebugApk: (() -> Unit)?,
     onLaunchApp: (InstalledApp) -> Unit,
+    onManagePermissions: (InstalledApp) -> Unit,
     onManageSpaces: () -> Unit,
     onOpenVault: () -> Unit,
     onSwitchSpace: (Int) -> Unit,
@@ -249,6 +250,7 @@ fun HomeScreen(
                 InstalledAppCard(
                     app = app,
                     onLaunch = { onLaunchApp(app) },
+                    onManagePermissions = { onManagePermissions(app) },
                     onRemove = { appPendingRemoval = app },
                 )
             }
@@ -545,6 +547,7 @@ private fun SpaceSelectorCard(
 private fun InstalledAppCard(
     app: InstalledApp,
     onLaunch: () -> Unit,
+    onManagePermissions: () -> Unit,
     onRemove: () -> Unit,
 ) {
     val icon = remember(app.iconPath) {
@@ -624,6 +627,16 @@ private fun InstalledAppCard(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text("Launch")
+            }
+            IconButton(
+                onClick = onManagePermissions,
+                modifier = Modifier.testTag("permissions_${app.packageName}"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "Permissions for ${app.label}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(
                 onClick = onRemove,

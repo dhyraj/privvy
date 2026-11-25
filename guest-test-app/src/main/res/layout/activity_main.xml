@@ -47,6 +47,12 @@
             android:text="TEST PREFERENCES" />
 
         <Button
+            android:id="@+id/isolation_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="READ ISOLATION STATE" />
+
+        <Button
             android:id="@+id/activity_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -75,5 +81,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="TEST GUEST PROVIDER" />
+
+        <Button
+            android:id="@+id/permission_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="REQUEST CAMERA PERMISSION" />
     </LinearLayout>
 </ScrollView>

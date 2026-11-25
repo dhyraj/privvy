@@ -1,6 +1,7 @@
 package com.privvy.app.ui
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -40,6 +41,7 @@ import com.privvy.app.core.SpaceAppRegistry
 import com.privvy.app.core.VirtualSpace
 import com.privvy.app.core.VirtualStorage
 import com.privvy.app.engine.GuestApkImporter
+import com.privvy.app.engine.GuestPermissionStore
 import com.privvy.app.engine.VirtualAppLauncher
 import com.privvy.app.engine.VirtualEngine
 import com.privvy.app.security.AuthManager
@@ -88,6 +90,7 @@ class MainActivity : FragmentActivity() {
     private var vaultPickerSpaceId = -1
     private var vaultJob: Job? = null
     private var systemPickerActive = false
+    private var permissionsDialog: AlertDialog? = null
 
     private lateinit var biometricPrompt: BiometricPrompt
 
@@ -208,6 +211,7 @@ class MainActivity : FragmentActivity() {
                     onCloneInstalled = ::showInstalledAppPicker,
                     onImportDebugApk = if (BuildConfig.DEBUG) ({ importDebugApk() }) else null,
                     onLaunchApp = ::launchApp,
+                    onManagePermissions = ::showPermissionManager,
                     onManageSpaces = { managerMessage = null; screen = Screen.SPACES },
                     onOpenVault = { vaultMessage = null; refreshVault(); screen = Screen.VAULT },
                     onSwitchSpace = ::switchSpace,
@@ -309,6 +313,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun applyLock(keepRequired: Boolean = false) {
+        permissionsDialog?.dismiss()
         sessionEpoch++
         locked = true
         importing = false
@@ -435,11 +440,65 @@ class MainActivity : FragmentActivity() {
             .onFailure { error -> importMessage = "Launch failed: ${error.message}" }
     }
 
+    private fun showPermissionManager(app: InstalledApp) {
+        val permissions = GuestPermissionStore.supportedRuntimePermissions(this, app.requestedPermissions)
+        if (permissions.isEmpty()) {
+            importMessage = "${app.label} has no manageable runtime permissions"
+            return
+        }
+        val labels = permissions.map { permission ->
+            val label = runCatching {
+                packageManager.getPermissionInfo(permission, 0).loadLabel(packageManager).toString()
+            }.getOrDefault(permission.substringAfterLast('.'))
+            if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                label
+            } else {
+                "$label (Android permission not granted)"
+            }
+        }.toTypedArray()
+        val checked = permissions.map {
+            GuestPermissionStore.isGranted(this, activeSpaceId, app.packageName, it)
+        }.toBooleanArray()
+        permissionsDialog = AlertDialog.Builder(this)
+            .setTitle("Permissions for ${app.label}")
+            .setMultiChoiceItems(labels, checked) { _, index, isChecked -> checked[index] = isChecked }
+            .setPositiveButton("Save") { _, _ ->
+                val saved = runCatching {
+                    permissions.forEachIndexed { index, permission ->
+                        GuestPermissionStore.setGranted(
+                            this,
+                            activeSpaceId,
+                            app.packageName,
+                            permission,
+                            checked[index],
+                        )
+                    }
+                }.isSuccess
+                importMessage = if (saved) {
+                    "Permissions updated for ${app.label}"
+                } else {
+                    "Could not update permissions for ${app.label}"
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+            .also { dialog ->
+                dialog.setOnDismissListener { permissionsDialog = null }
+                dialog.show()
+            }
+    }
+
     private fun removeApp(app: InstalledApp) {
-        SpaceAppRegistry.remove(this, activeSpaceId, app.packageName)
-        VirtualEngine.clearGuestClassLoader(app.packageName)
-        apps.removeAll { it.packageName == app.packageName }
-        importMessage = "Removed ${app.label} from this space"
+        runCatching {
+            GuestPermissionStore.clear(this, activeSpaceId, app.packageName)
+            SpaceAppRegistry.remove(this, activeSpaceId, app.packageName)
+            VirtualEngine.clearGuestClassLoader(app.packageName)
+        }.onSuccess {
+            apps.removeAll { it.packageName == app.packageName }
+            importMessage = "Removed ${app.label} from this space"
+        }.onFailure {
+            importMessage = "Could not remove ${app.label}: ${it.message}"
+        }
     }
 
     private fun createSpace(name: String, pin: String) {

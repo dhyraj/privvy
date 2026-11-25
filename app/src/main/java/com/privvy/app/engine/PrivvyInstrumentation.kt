@@ -12,10 +12,18 @@ import android.content.res.Resources
 import android.os.Bundle
 import android.os.IBinder
 import android.os.PersistableBundle
+import android.os.SystemClock
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.Window
 import android.view.WindowManager
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 import com.privvy.app.core.SpaceAppRegistry
 import com.privvy.app.core.stub.StubActivityBase
+import com.privvy.app.security.SessionGuardService
 import com.privvy.app.security.SessionLockManager
 
 /**
@@ -46,14 +54,7 @@ class PrivvyInstrumentation(
     private val guestStates = WeakHashMap<Activity, GuestState>()
     private val guestApps = WeakHashMap<Activity, GuestRuntime>()
     private val permissionDialogs = WeakHashMap<Activity, AlertDialog>()
-    private val hostDeclaredPermissions by lazy {
-        runCatching {
-            context.packageManager.getPackageInfo(
-                context.packageName,
-                PackageManager.GET_PERMISSIONS,
-            ).requestedPermissions.orEmpty().toSet()
-        }.getOrDefault(emptySet())
-    }
+    private var lastGuestTouchSent = 0L
 
     init {
         runCatching {
@@ -165,9 +166,10 @@ class PrivvyInstrumentation(
         options: Bundle?,
     ): Instrumentation.ActivityResult? {
         val permissions = intent.getStringArrayExtra(REQUEST_PERMISSIONS_NAMES).orEmpty()
-        val supported = permissions.filter { permission ->
-            permission in runtime.app.requestedPermissions && permission in hostDeclaredPermissions
-        }.distinct()
+        val supported = GuestPermissionStore.supportedRuntimePermissions(
+            context,
+            permissions.filter { it in runtime.app.requestedPermissions },
+        )
         val decisions = permissions.associateWith { false }.toMutableMap()
         supported.forEach { decisions[it] = GuestPermissionStore.isGranted(context, runtime.spaceId, runtime.app.packageName, it) }
         val needsDecision = supported.filter { decisions[it] != true }
@@ -381,6 +383,7 @@ class PrivvyInstrumentation(
         applyGuestContext(activity)
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         original.callActivityOnCreate(activity, icicle)
+        trackGuestTouches(activity)
     }
 
     override fun callActivityOnCreate(
@@ -391,6 +394,7 @@ class PrivvyInstrumentation(
         applyGuestContext(activity)
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         original.callActivityOnCreate(activity, icicle, persistentState)
+        trackGuestTouches(activity)
     }
 
     fun callActivityOnRequestPermissionsResult(
@@ -409,6 +413,52 @@ class PrivvyInstrumentation(
             }
         }
         activity.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+
+    private fun trackGuestTouches(activity: Activity) {
+        if (activity !in guestApps) return
+        val window = activity.window
+        val delegate = window.callback ?: return
+        val callback = Proxy.newProxyInstance(
+            delegate.javaClass.classLoader ?: Window.Callback::class.java.classLoader,
+            arrayOf(Window.Callback::class.java),
+            InvocationHandler { proxy, method, args ->
+                when (method.name) {
+                    "dispatchTouchEvent", "dispatchTrackballEvent", "dispatchGenericMotionEvent" ->
+                        recordGuestInteraction(args?.firstOrNull() as? MotionEvent)
+                    "dispatchKeyEvent" -> recordGuestInteraction(args?.firstOrNull() as? KeyEvent)
+                    "equals" -> return@InvocationHandler proxy === args?.firstOrNull()
+                    "hashCode" -> return@InvocationHandler System.identityHashCode(proxy)
+                    "toString" -> return@InvocationHandler "GuestInteractionWindowCallback"
+                }
+                try {
+                    method.invoke(delegate, *args.orEmpty())
+                } catch (error: InvocationTargetException) {
+                    throw error.targetException
+                }
+            },
+        ) as Window.Callback
+        window.callback = callback
+    }
+
+    private fun recordGuestInteraction(event: MotionEvent?) {
+        if (event?.actionMasked == MotionEvent.ACTION_DOWN) recordGuestInteraction()
+    }
+
+    private fun recordGuestInteraction(event: KeyEvent?) {
+        if (event?.action == KeyEvent.ACTION_DOWN) recordGuestInteraction()
+    }
+
+    private fun recordGuestInteraction() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastGuestTouchSent <= 30_000L) return
+        lastGuestTouchSent = now
+        runCatching {
+            context.startForegroundService(
+                android.content.Intent(context, SessionGuardService::class.java)
+                    .setAction(SessionGuardService.ACTION_TOUCH),
+            )
+        }
     }
 
     /**
