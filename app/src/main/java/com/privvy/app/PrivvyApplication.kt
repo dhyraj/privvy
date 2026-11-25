@@ -1,9 +1,14 @@
 package com.privvy.app
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.util.Log
 import com.privvy.app.core.EngineState
 import com.privvy.app.core.VirtualStorage
+import com.privvy.app.engine.GuestReceiverRegistrar
 import com.privvy.app.engine.VirtualEngine
 import com.privvy.app.io.PrivvyNative
 import com.privvy.app.security.SessionLockManager
@@ -45,6 +50,24 @@ class PrivvyApplication : Application() {
             VirtualEngine.hookInstrumentation(this)
         } else {
             if (!SessionLockManager.isLocked(this)) SessionLockManager.lockSession(this)
+            val sessionReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    when (intent.action) {
+                        SessionLockManager.ACTION_SESSION_STARTED -> GuestReceiverRegistrar.refresh(context)
+                        SessionLockManager.ACTION_SESSION_LOCKED -> GuestReceiverRegistrar.unregisterAll(context)
+                    }
+                }
+            }
+            val sessionFilter = IntentFilter().apply {
+                addAction(SessionLockManager.ACTION_SESSION_STARTED)
+                addAction(SessionLockManager.ACTION_SESSION_LOCKED)
+            }
+            androidx.core.content.ContextCompat.registerReceiver(
+                this,
+                sessionReceiver,
+                sessionFilter,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
             // Host process must keep real filesystem access (APK import, app
             // metadata) and must not wrap the real Instrumentation.
             Log.i("PrivvyApp", "host process — IO/instrumentation hooks are guest-only")

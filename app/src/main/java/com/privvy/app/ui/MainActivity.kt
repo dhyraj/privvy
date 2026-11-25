@@ -427,6 +427,7 @@ class MainActivity : FragmentActivity() {
                     apps.removeAll { it.packageName == app.packageName }
                     apps.add(app)
                     importMessage = "$successVerb ${app.label}"
+                    com.privvy.app.engine.GuestReceiverRegistrar.refresh(this@MainActivity)
                 }.onFailure { error ->
                     importMessage = "Import failed: ${error.message}"
                     Log.e("PrivvyImport", "import failed", error)

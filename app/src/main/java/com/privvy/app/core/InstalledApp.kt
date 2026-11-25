@@ -20,6 +20,7 @@ data class InstalledApp(
     val activityNames: List<String> = emptyList(),
     val serviceNames: List<String> = emptyList(),
     val receiverNames: List<String> = emptyList(),
+    val receiverFilters: List<GuestReceiverFilter> = emptyList(),
     val providerNames: List<String> = emptyList(),
     val providerAuthorities: List<String> = emptyList(),
     val signatureBase64: List<String> = emptyList(),
@@ -41,6 +42,7 @@ data class InstalledApp(
         put("activityNames", JSONArray(activityNames))
         put("serviceNames", JSONArray(serviceNames))
         put("receiverNames", JSONArray(receiverNames))
+        put("receiverFilters", JSONArray(receiverFilters.map { it.toJson() }))
         put("providerNames", JSONArray(providerNames))
         put("providerAuthorities", JSONArray(providerAuthorities))
         put("signatureBase64", JSONArray(signatureBase64))
@@ -61,19 +63,20 @@ data class InstalledApp(
             return InstalledApp(
                 packageName = pkg,
                 label = json.optString("label", pkg),
-                versionName = json.optString("versionName").takeIf { it.isNotEmpty() },
+                versionName = json.nullableString("versionName"),
                 versionCode = json.optLong("versionCode", 0L),
                 launchActivity = launch,
                 launchTheme = json.optInt("launchTheme", 0),
                 apkPaths = paths,
-                nativeLibDir = json.optString("nativeLibDir").takeIf { it.isNotEmpty() },
-                iconPath = json.optString("iconPath").takeIf { it.isNotEmpty() },
+                nativeLibDir = json.nullableString("nativeLibDir"),
+                iconPath = json.nullableString("iconPath"),
                 installedAt = json.optLong("installedAt", 0L),
-                applicationClassName = json.optString("applicationClassName").takeIf { it.isNotEmpty() },
+                applicationClassName = json.nullableString("applicationClassName"),
                 requestedPermissions = json.stringList("requestedPermissions"),
                 activityNames = json.stringList("activityNames"),
                 serviceNames = json.stringList("serviceNames"),
                 receiverNames = json.stringList("receiverNames"),
+                receiverFilters = json.receiverFilterList("receiverFilters"),
                 providerNames = json.stringList("providerNames"),
                 providerAuthorities = json.stringList("providerAuthorities"),
                 signatureBase64 = json.stringList("signatureBase64"),
@@ -81,11 +84,25 @@ data class InstalledApp(
             )
         }
 
+        private fun JSONObject.nullableString(name: String): String? =
+            if (isNull(name)) null else optString(name).takeIf { it.isNotEmpty() && it != "null" }
+
         private fun JSONObject.stringList(name: String): List<String> {
             val array = optJSONArray(name) ?: return emptyList()
             return buildList {
                 for (index in 0 until array.length()) {
                     array.optString(index).takeIf { it.isNotEmpty() }?.let(::add)
+                }
+            }
+        }
+
+        private fun JSONObject.receiverFilterList(name: String): List<GuestReceiverFilter> {
+            val array = optJSONArray(name) ?: return emptyList()
+            return buildList {
+                for (index in 0 until array.length()) {
+                    array.optJSONObject(index)?.let { obj ->
+                        GuestReceiverFilter.fromJson(obj)?.let(::add)
+                    }
                 }
             }
         }

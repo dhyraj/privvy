@@ -1,5 +1,6 @@
 package com.privvy.app.engine
 
+import com.privvy.app.core.GuestReceiverFilter
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -16,7 +17,9 @@ object ApkManifestParser {
 
     data class LaunchInfo(val activityName: String, val themeResId: Int)
 
-    fun parse(apk: File, fallbackPackageName: String? = null): LaunchInfo? {
+    data class ManifestInfo(val launch: LaunchInfo?, val receivers: List<GuestReceiverFilter>)
+
+    fun parseManifest(apk: File, fallbackPackageName: String? = null): ManifestInfo? {
         val bytes = try {
             ZipFile(apk).use { zip ->
                 val entry = zip.getEntry("AndroidManifest.xml") ?: return null
@@ -26,11 +29,14 @@ object ApkManifestParser {
             return null
         }
         return try {
-            Parser(bytes).parse(fallbackPackageName)
+            Parser(bytes).parseManifest(fallbackPackageName)
         } catch (_: Throwable) {
             null
         }
     }
+
+    fun parse(apk: File, fallbackPackageName: String? = null): LaunchInfo? =
+        parseManifest(apk, fallbackPackageName)?.launch
 
     /**
      * Heuristic fallback when AXML parsing fails. Prefers a main/launcher-named
@@ -52,7 +58,7 @@ object ApkManifestParser {
         private val buf: ByteBuffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
         private var strings: Array<String> = emptyArray()
 
-        fun parse(fallbackPackageName: String?): LaunchInfo? {
+        fun parseManifest(fallbackPackageName: String?): ManifestInfo {
             var offset = 8 // skip the top-level RES_XML_TYPE chunk header
             var packageName = fallbackPackageName
             var applicationTheme = 0
@@ -64,6 +70,25 @@ object ApkManifestParser {
             var hasMain = false
             var hasLauncher = false
             var result: LaunchInfo? = null
+
+            var currentReceiver: String? = null
+            var receiverExported = false
+            val receiverActions = mutableListOf<String>()
+            val receiverCategories = mutableListOf<String>()
+            val receiverSchemes = mutableListOf<String>()
+            val receiverHosts = mutableListOf<String>()
+            val receiverPaths = mutableListOf<String>()
+            val receiverMimeTypes = mutableListOf<String>()
+            val receivers = mutableListOf<GuestReceiverFilter>()
+
+            fun clearReceiverFilter() {
+                receiverActions.clear()
+                receiverCategories.clear()
+                receiverSchemes.clear()
+                receiverHosts.clear()
+                receiverPaths.clear()
+                receiverMimeTypes.clear()
+            }
 
             while (offset + 8 <= data.size) {
                 val type = u16(offset)
@@ -100,20 +125,43 @@ object ApkManifestParser {
                                 inFilter = false; hasMain = false; hasLauncher = false
                             }
 
+                            "receiver" -> {
+                                val pkg = packageName ?: fallbackPackageName ?: ""
+                                currentReceiver = attrString(attrs, "name")
+                                    ?.takeIf { it.isNotEmpty() && pkg.isNotEmpty() }
+                                    ?.let { resolve(it, pkg) }
+                                receiverExported = attrBoolean(attrs, "exported") ?: false
+                                clearReceiverFilter()
+                            }
+
                             "intent-filter" -> {
                                 inFilter = true; hasMain = false; hasLauncher = false
+                                if (currentReceiver != null) clearReceiverFilter()
                             }
 
                             "action" -> {
-                                if (inFilter &&
-                                    attrString(attrs, "name") == "android.intent.action.MAIN"
-                                ) hasMain = true
+                                val name = attrString(attrs, "name")
+                                if (inFilter && name == "android.intent.action.MAIN") hasMain = true
+                                if (currentReceiver != null && inFilter && name != null) {
+                                    receiverActions.add(name)
+                                }
                             }
 
                             "category" -> {
-                                if (inFilter &&
-                                    attrString(attrs, "name") == "android.intent.category.LAUNCHER"
-                                ) hasLauncher = true
+                                val name = attrString(attrs, "name")
+                                if (inFilter && name == "android.intent.category.LAUNCHER") hasLauncher = true
+                                if (currentReceiver != null && inFilter && name != null) {
+                                    receiverCategories.add(name)
+                                }
+                            }
+
+                            "data" -> {
+                                if (currentReceiver != null && inFilter) {
+                                    attrString(attrs, "scheme")?.let(receiverSchemes::add)
+                                    attrString(attrs, "host")?.let(receiverHosts::add)
+                                    attrString(attrs, "path")?.let(receiverPaths::add)
+                                    attrString(attrs, "mimeType")?.let(receiverMimeTypes::add)
+                                }
                             }
                         }
                     }
@@ -131,7 +179,23 @@ object ApkManifestParser {
                                         )
                                     }
                                 }
+                                val receiver = currentReceiver
+                                if (receiver != null && receiverActions.isNotEmpty()) {
+                                    receivers.add(
+                                        GuestReceiverFilter(
+                                            receiverName = receiver,
+                                            exported = receiverExported,
+                                            actions = receiverActions.toList(),
+                                            categories = receiverCategories.toList(),
+                                            dataSchemes = receiverSchemes.toList(),
+                                            dataHosts = receiverHosts.toList(),
+                                            dataPaths = receiverPaths.toList(),
+                                            dataMimeTypes = receiverMimeTypes.toList(),
+                                        ),
+                                    )
+                                }
                                 inFilter = false
+                                if (currentReceiver != null) clearReceiverFilter()
                             }
 
                             "activity", "activity-alias" -> {
@@ -140,12 +204,18 @@ object ApkManifestParser {
                                 currentTheme = 0
                                 inFilter = false; hasMain = false; hasLauncher = false
                             }
+
+                            "receiver" -> {
+                                currentReceiver = null
+                                receiverExported = false
+                                clearReceiverFilter()
+                            }
                         }
                     }
                 }
                 offset += size
             }
-            return result
+            return ManifestInfo(result, receivers)
         }
 
         // ---------------------------------------------------------------
@@ -231,6 +301,11 @@ object ApkManifestParser {
                 strings.getOrNull(attr.data)?.let { return it }
             }
             return null
+        }
+
+        private fun attrBoolean(attrs: List<Attr>, name: String): Boolean? {
+            val attr = attrs.firstOrNull { it.name == name } ?: return null
+            return if (attr.dataType == 0x12) attr.data != 0 else null
         }
 
         private fun u16(offset: Int): Int =

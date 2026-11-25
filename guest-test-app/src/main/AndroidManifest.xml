@@ -30,7 +30,11 @@
 
         <receiver
             android:name=".TestReceiver"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.privvy.guesttest.STATIC_PING" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name=".ProbeProvider"

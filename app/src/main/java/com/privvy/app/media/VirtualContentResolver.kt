@@ -177,10 +177,105 @@ class VirtualContentResolver(
                         VirtualMediaStore.isVirtualMediaUri(uri)
                 }
             ) {
-                throw UnsupportedOperationException("Virtual MediaStore does not support applyBatch")
+                return applyMediaBatch(operations)
             }
             return realResolver.applyBatch(authority, operations)
         }
+
+        private fun applyMediaBatch(operations: ArrayList<ContentProviderOperation>): Array<ContentProviderResult> {
+            val results = arrayOfNulls<ContentProviderResult>(operations.size)
+            operations.forEachIndexed { index, operation ->
+                val uri = operation.uri
+                val target = requireNotNull(targetFor(uri)) {
+                    "Virtual MediaStore batch mixes non-media URI: $uri"
+                }
+                val expectedCount = runCatching {
+                    operationField("mExpectedCount").get(operation) as? Int
+                }.getOrNull()
+                val result = when {
+                    operationBoolean(operation, "isInsert") -> {
+                        require(target.mediaId == null) { "Media batch insert requires a collection URI: $uri" }
+                        val values = resolveValues(operation, results, index)
+                        val inserted = VirtualMediaStore.insertInternal(
+                            appContext,
+                            target.spaceId,
+                            values,
+                            guestPackageName,
+                            mediaTypeFor(uri),
+                        )
+                        ContentProviderResult(inserted)
+                    }
+                    operationBoolean(operation, "isUpdate") -> {
+                        val values = resolveValues(operation, results, index)
+                        val selection = runCatching {
+                            operationField("mSelection").get(operation) as? String
+                        }.getOrNull()
+                        val selectionArgs = resolveSelectionArgs(operation, results, index)
+                        val count = VirtualMediaStore.updateInternal(
+                            appContext,
+                            target.spaceId,
+                            target.mediaId,
+                            values,
+                            selection,
+                            selectionArgs,
+                            mediaTypeFor(uri),
+                        )
+                        checkExpectedCount(expectedCount, count)
+                        ContentProviderResult(count)
+                    }
+                    operationBoolean(operation, "isDelete") -> {
+                        val selection = runCatching {
+                            operationField("mSelection").get(operation) as? String
+                        }.getOrNull()
+                        val selectionArgs = resolveSelectionArgs(operation, results, index)
+                        val count = VirtualMediaStore.deleteInternal(
+                            appContext,
+                            target.spaceId,
+                            target.mediaId,
+                            selection,
+                            selectionArgs,
+                            mediaTypeFor(uri),
+                        )
+                        checkExpectedCount(expectedCount, count)
+                        ContentProviderResult(count)
+                    }
+                    else -> throw UnsupportedOperationException("Virtual MediaStore batch operation: $operation")
+                }
+                results[index] = result
+            }
+            return results.filterNotNull().toTypedArray()
+        }
+
+        private fun checkExpectedCount(expected: Int?, actual: Int) {
+            if (expected != null && expected != actual) {
+                throw android.content.OperationApplicationException("Expected $actual to be $expected")
+            }
+        }
+
+        private fun operationBoolean(operation: ContentProviderOperation, name: String): Boolean =
+            ContentProviderOperation::class.java.getMethod(name).invoke(operation) as Boolean
+
+        private fun resolveValues(
+            operation: ContentProviderOperation,
+            results: Array<ContentProviderResult?>,
+            index: Int,
+        ): ContentValues =
+            ContentProviderOperation::class.java
+                .getMethod("resolveValueBackReferences", Array<ContentProviderResult>::class.java, Int::class.javaPrimitiveType)
+                .invoke(operation, results, index) as? ContentValues ?: ContentValues()
+
+        @Suppress("UNCHECKED_CAST")
+        private fun resolveSelectionArgs(
+            operation: ContentProviderOperation,
+            results: Array<ContentProviderResult?>,
+            index: Int,
+        ): Array<out String>? =
+            ContentProviderOperation::class.java
+                .getMethod("resolveSelectionArgsBackReferences", Array<ContentProviderResult>::class.java, Int::class.javaPrimitiveType)
+                .invoke(operation, results, index) as? Array<out String>
+
+        private fun operationField(name: String): java.lang.reflect.Field =
+            ContentProviderOperation::class.java.getDeclaredField(name).apply { isAccessible = true }
 
         private fun routeGuestProviderUri(uri: Uri): Uri {
             val authority = requireNotNull(uri.authority) { "Guest provider URI has no authority" }

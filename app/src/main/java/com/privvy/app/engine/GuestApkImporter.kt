@@ -106,7 +106,8 @@ object GuestApkImporter {
             pkgInfo.versionCode.toLong()
         }
 
-        val launchInfo = ApkManifestParser.parse(baseFile, packageName)
+        val manifestInfo = ApkManifestParser.parseManifest(baseFile, packageName)
+        val launchInfo = manifestInfo?.launch
         val launchActivity = launchInfo?.activityName
             ?: ApkManifestParser.fallbackLaunchActivity(pkgInfo.activities)
             ?: throw IllegalStateException("No launcher activity found in $packageName")
@@ -167,6 +168,7 @@ object GuestApkImporter {
             activityNames = pkgInfo.activities.orEmpty().map { it.name },
             serviceNames = pkgInfo.services.orEmpty().map { it.name },
             receiverNames = pkgInfo.receivers.orEmpty().map { it.name },
+            receiverFilters = manifestInfo?.receivers.orEmpty(),
             providerNames = pkgInfo.providers.orEmpty().map { it.name },
             providerAuthorities = pkgInfo.providers.orEmpty().flatMap { it.authority?.split(';').orEmpty() },
             signatureBase64 = if (android.os.Build.VERSION.SDK_INT >= 28) {

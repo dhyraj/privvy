@@ -1,5 +1,6 @@
 package com.privvy.app.media
 
+import android.content.ContentProviderOperation
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
@@ -8,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.privvy.app.core.VirtualStorage
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
@@ -64,5 +66,44 @@ class VirtualContentResolverTest {
         } finally {
             resolver.delete(uri, null, null)
         }
+    }
+
+    @Test
+    fun applyBatchInsertsUpdatesAndDeletesMedia() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val spaceId = VirtualStorage.SPACE_SLOTS - 1
+        VirtualStorage.ensureSpace(context, spaceId)
+        val resolver = VirtualContentResolver(context, spaceId, "com.privvy.test.guest")
+        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val name = "batch-${System.nanoTime()}.jpg"
+        val operations = arrayListOf(
+            ContentProviderOperation.newInsert(collection)
+                .withValue(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                .withValue(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                .withValue(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/PrivvyTests/")
+                .build(),
+            ContentProviderOperation.newUpdate(collection)
+                .withSelection("${MediaStore.MediaColumns.DISPLAY_NAME}=?", arrayOf(name))
+                .withValue(MediaStore.MediaColumns.WIDTH, 17)
+                .withValue(MediaStore.MediaColumns.HEIGHT, 11)
+                .build(),
+            ContentProviderOperation.newDelete(collection)
+                .withSelection("${MediaStore.MediaColumns.DISPLAY_NAME}=?", arrayOf(name))
+                .build(),
+        )
+        val results = resolver.applyBatch(MediaStore.AUTHORITY, operations)
+        assertEquals(3, results.size)
+        assertNotNull(results[0].uri)
+        assertEquals(1, results[1].count)
+        assertEquals(1, results[2].count)
+        checkNotNull(
+            resolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${MediaStore.MediaColumns.DISPLAY_NAME}=?",
+                arrayOf(name),
+                null,
+            ),
+        ).use { cursor -> assertEquals(0, cursor.count) }
     }
 }
