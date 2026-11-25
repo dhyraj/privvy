@@ -82,6 +82,7 @@ class MainActivity : FragmentActivity() {
     private val apps = mutableStateListOf<InstalledApp>()
     private var vaultFiles by mutableStateOf(emptyList<VaultFile>())
     private var importing by mutableStateOf(false)
+    private var overlayGranted by mutableStateOf(false)
     private var importMessage by mutableStateOf<String?>(null)
     private var managerMessage by mutableStateOf<String?>(null)
     private var vaultMessage by mutableStateOf<String?>(null)
@@ -217,6 +218,18 @@ class MainActivity : FragmentActivity() {
                     onOpenVault = { vaultMessage = null; refreshVault(); screen = Screen.VAULT },
                     onSwitchSpace = ::switchSpace,
                     onRemoveApp = ::removeApp,
+                    onEnableReturnPill = if (overlayGranted) null else {
+                        {
+                            runCatching {
+                                startActivity(
+                                    android.content.Intent(
+                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse("package:$packageName"),
+                                    ),
+                                )
+                            }
+                        }
+                    },
                 )
             }
             Screen.SPACES -> SpaceManagerScreen(
@@ -254,6 +267,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
+        ReturnPill.hide(this)
         if (!locked) notifySessionGuard(SessionGuardService.ACTION_FOREGROUND)
     }
 
@@ -681,6 +695,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        overlayGranted = android.provider.Settings.canDrawOverlays(this)
         if (!locked && SessionLockManager.isLocked(this)) applyLock()
     }
 

@@ -39,6 +39,7 @@ class SessionGuardService : Service() {
                 lockSession()
                 return
             }
+            updatePill()
             handler.postDelayed(this, MONITOR_INTERVAL_MS)
         }
     }
@@ -90,8 +91,24 @@ class SessionGuardService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(monitor)
+        com.privvy.app.ui.ReturnPill.hide(this)
         runCatching { unregisterReceiver(screenOffReceiver) }
         super.onDestroy()
+    }
+
+    private fun updatePill() {
+        if (!backgrounded) {
+            com.privvy.app.ui.ReturnPill.hide(this)
+            return
+        }
+        val manager = getSystemService(ActivityManager::class.java)
+        val guestVisible = manager?.runningAppProcesses.orEmpty().any { process ->
+            process.processName.startsWith("$packageName:v") &&
+                (process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+                    process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE)
+        }
+        if (guestVisible) com.privvy.app.ui.ReturnPill.show(this)
+        else com.privvy.app.ui.ReturnPill.hide(this)
     }
 
     private fun shouldLock(): Boolean {
@@ -109,6 +126,7 @@ class SessionGuardService : Service() {
 
     private fun lockSession() {
         SessionLockManager.lockSession(this)
+        com.privvy.app.ui.ReturnPill.hide(this)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

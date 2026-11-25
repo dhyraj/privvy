@@ -91,6 +91,7 @@ fun HomeScreen(
     onOpenVault: () -> Unit,
     onSwitchSpace: (Int) -> Unit,
     onRemoveApp: (InstalledApp) -> Unit,
+    onEnableReturnPill: (() -> Unit)? = null,
 ) {
     var spaceMenuExpanded by remember { mutableStateOf(false) }
     var appPendingRemoval by remember { mutableStateOf<InstalledApp?>(null) }
@@ -195,6 +196,12 @@ fun HomeScreen(
                 onSwitchSpace(it)
             },
         )
+
+        if (onEnableReturnPill != null) {
+            TextButton(onClick = onEnableReturnPill) {
+                Text("Enable floating return pill")
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
