@@ -1,5 +1,6 @@
 package com.privvy.app.ui.auth
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,12 +11,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -106,88 +114,121 @@ fun LockScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "Privvy",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = when (mode) {
-                LockMode.SETUP -> "Create a PIN to protect this space"
-                LockMode.CONFIRM -> "Confirm your PIN"
-                LockMode.UNLOCK -> requiredSpaceName?.let { "Enter PIN for $it" } ?: "Enter your PIN to unlock"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(28.dp))
-
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceVariant,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Surface(
+                modifier = Modifier.size(72.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Shield,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(18.dp),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
             Text(
-                text = if (pin.isEmpty()) "• • • •" else "●".repeat(pin.length),
-                fontSize = 28.sp,
+                text = "PRIVATE WORKSPACE",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Privvy",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = when (mode) {
+                    LockMode.SETUP -> "Create a PIN to protect this space"
+                    LockMode.CONFIRM -> "Confirm your PIN"
+                    LockMode.UNLOCK -> requiredSpaceName?.let { "Enter PIN for $it" } ?: "Enter your PIN to unlock"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                letterSpacing = 6.sp,
+            )
+            Spacer(Modifier.height(28.dp))
+
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = if (pin.isEmpty()) "• • • •" else "●".repeat(pin.length),
+                    fontSize = 30.sp,
+                    textAlign = TextAlign.Center,
+                    letterSpacing = 8.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp)
+                        .testTag("pin_display"),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            if (error != null) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                ) {
+                    Text(
+                        text = error.orEmpty(),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            PinPad(
+                onDigit = {
+                    if (pin.length < AuthManager.MAX_PIN_LENGTH) {
+                        pin += it
+                        error = null
+                    }
+                },
+                onBackspace = { pin = pin.dropLast(1) },
+            )
+
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = { submit() },
+                enabled = pin.length >= AuthManager.MIN_PIN_LENGTH,
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 18.dp)
-                    .testTag("pin_display"),
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = error ?: " ",
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Spacer(Modifier.height(12.dp))
+                    .height(52.dp)
+                    .testTag("pin_submit"),
+            ) {
+                Text(
+                    when (mode) {
+                        LockMode.SETUP -> "Continue"
+                        LockMode.CONFIRM -> "Set PIN"
+                        LockMode.UNLOCK -> "Unlock"
+                    }
+                )
+            }
 
-        PinPad(
-            onDigit = {
-                if (pin.length < AuthManager.MAX_PIN_LENGTH) {
-                    pin += it
-                    error = null
+            if (mode == LockMode.UNLOCK && biometricAvailable) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onBiometricRequest) {
+                    Text("Unlock with biometrics")
                 }
-            },
-            onBackspace = { pin = pin.dropLast(1) },
-        )
-
-        Spacer(Modifier.height(20.dp))
-        Button(
-            onClick = { submit() },
-            enabled = pin.length >= AuthManager.MIN_PIN_LENGTH,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("pin_submit"),
-        ) {
-            Text(
-                when (mode) {
-                    LockMode.SETUP -> "Continue"
-                    LockMode.CONFIRM -> "Set PIN"
-                    LockMode.UNLOCK -> "Unlock"
-                }
-            )
-        }
-
-        if (mode == LockMode.UNLOCK && biometricAvailable) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onBiometricRequest) {
-                Text("Unlock with biometrics")
             }
         }
     }
@@ -204,25 +245,33 @@ private fun PinPad(
         listOf("7", "8", "9"),
         listOf("", "0", "⌫"),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 row.forEach { key ->
                     Box(Modifier.weight(1f)) {
                         when (key) {
-                            "" -> Spacer(Modifier.size(64.dp))
+                            "" -> Spacer(Modifier.size(60.dp))
                             "⌫" -> OutlinedButton(
                                 onClick = onBackspace,
+                                shape = MaterialTheme.shapes.medium,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
+                                    .height(60.dp),
                             ) { Text(key, fontSize = 20.sp) }
-                            else -> Button(
+                            else -> FilledTonalButton(
                                 onClick = { onDigit(key) },
+                                shape = MaterialTheme.shapes.medium,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
-                            ) { Text(key, fontSize = 20.sp) }
+                                    .height(60.dp),
+                            ) { Text(key, style = MaterialTheme.typography.titleLarge) }
                         }
                     }
                 }

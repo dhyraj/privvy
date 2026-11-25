@@ -1,6 +1,7 @@
 package com.privvy.app.ui.home
 
 import android.graphics.BitmapFactory
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,14 +12,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,6 +66,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.privvy.app.core.InstalledApp
@@ -100,14 +100,17 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .semantics { testTagsAsResourceId = true },
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Surface(shadowElevation = 8.dp) {
+            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp, shadowElevation = 8.dp) {
                 OutlinedButton(
                     onClick = onLock,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .heightIn(min = 52.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
@@ -128,8 +131,8 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(contentPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -137,15 +140,15 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Surface(
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
+                modifier = Modifier.size(48.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.primaryContainer,
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Shield,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(12.dp),
                 )
             }
             Column(Modifier.weight(1f)) {
@@ -161,11 +164,11 @@ fun HomeScreen(
                 )
             }
             Surface(
-                shape = CircleShape,
+                shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.secondaryContainer,
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
@@ -224,32 +227,40 @@ fun HomeScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 ),
             ) {
-                Row(
-                    modifier = Modifier.padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Apps,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "No apps in this space yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "Import an APK to launch it inside Privvy.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Surface(
+                        modifier = Modifier.size(56.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Apps,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(14.dp),
                         )
                     }
+                    Text(
+                        text = "No apps in this space yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Import an APK to launch it inside Privvy.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         } else {
@@ -266,12 +277,12 @@ fun HomeScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -438,6 +449,7 @@ private fun SpaceSelectorCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("space_selector"),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
@@ -453,15 +465,15 @@ private fun SpaceSelectorCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(48.dp),
+                    shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.WorkspacePremium,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(12.dp),
                     )
                 }
                 Column(Modifier.weight(1f)) {
@@ -569,91 +581,108 @@ private fun InstalledAppCard(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (icon != null) {
-                Image(
-                    bitmap = icon,
-                    contentDescription = app.label,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (icon != null) {
+                    Image(
+                        bitmap = icon,
+                        contentDescription = app.label,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(MaterialTheme.shapes.small),
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Apps,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(13.dp),
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = app.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = app.packageName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    app.versionName?.let { version ->
+                        Text(
+                            text = "Version $version",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = onLaunch,
+                    shape = MaterialTheme.shapes.medium,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                )
-            } else {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .testTag("launch_${app.packageName}"),
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Apps,
+                        imageVector = Icons.Outlined.PlayArrow,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(11.dp),
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Launch")
+                }
+                IconButton(
+                    onClick = onManagePermissions,
+                    modifier = Modifier.testTag("permissions_${app.packageName}"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "Permissions for ${app.label}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = app.label,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = app.packageName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                app.versionName?.let { version ->
-                    Text(
-                        text = "Version $version",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.testTag("remove_${app.packageName}"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "Remove ${app.label}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Button(
-                onClick = onLaunch,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                modifier = Modifier.testTag("launch_${app.packageName}"),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text("Launch")
-            }
-            IconButton(
-                onClick = onManagePermissions,
-                modifier = Modifier.testTag("permissions_${app.packageName}"),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = "Permissions for ${app.label}",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            IconButton(
-                onClick = onRemove,
-                modifier = Modifier.testTag("remove_${app.packageName}"),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = "Remove ${app.label}",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -669,7 +698,7 @@ private fun HomeShortcut(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier.height(128.dp),
+        modifier = modifier.heightIn(min = 140.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ),
@@ -677,7 +706,7 @@ private fun HomeShortcut(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(

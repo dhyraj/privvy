@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -38,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Add
@@ -95,6 +95,10 @@ fun SpaceManagerScreen(
             .testTag("space_manager_screen"),
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
                 title = {
                     Column {
                         Text(
@@ -139,20 +143,37 @@ fun SpaceManagerScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                top = contentPadding.calculateTopPadding() + 8.dp,
-                end = 16.dp,
-                bottom = contentPadding.calculateBottomPadding() + 104.dp,
+                start = 20.dp,
+                top = contentPadding.calculateTopPadding() + 12.dp,
+                end = 20.dp,
+                bottom = contentPadding.calculateBottomPadding() + 112.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                Text(
-                    text = "Each space keeps guest apps, permissions, and files separate. " +
-                        "The space you are using is marked as active.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = "Each space keeps guest apps, permissions, and files separate. " +
+                                "The space you are using is marked as active.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
 
             if (!message.isNullOrBlank()) {
@@ -310,16 +331,16 @@ private fun SpaceCard(
         ),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Surface(
-                    modifier = Modifier.size(46.dp),
-                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier.size(48.dp),
+                    shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     if (isActive) {
@@ -382,7 +403,7 @@ private fun SpaceCard(
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -390,6 +411,7 @@ private fun SpaceCard(
             ) {
                 OutlinedButton(
                     onClick = onRename,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("rename_space_${space.id}"),
@@ -404,6 +426,7 @@ private fun SpaceCard(
                 }
                 OutlinedButton(
                     onClick = onChangePin,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("change_pin_${space.id}"),
@@ -474,7 +497,7 @@ private fun StatusPill(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             color = contentColor,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
 }

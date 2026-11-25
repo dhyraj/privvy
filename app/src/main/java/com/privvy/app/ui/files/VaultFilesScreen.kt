@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
@@ -83,8 +82,13 @@ fun VaultFilesScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("vault_files_screen"),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
                 title = {
                     Column {
                         Text(
@@ -116,34 +120,35 @@ fun VaultFilesScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                top = contentPadding.calculateTopPadding() + 8.dp,
-                end = 16.dp,
-                bottom = contentPadding.calculateBottomPadding() + 24.dp,
+                start = 20.dp,
+                top = contentPadding.calculateTopPadding() + 12.dp,
+                end = 20.dp,
+                bottom = contentPadding.calculateBottomPadding() + 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     ),
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(18.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(44.dp),
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.10f),
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Lock,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(10.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(11.dp),
                             )
                         }
                         Column(Modifier.weight(1f)) {
@@ -151,12 +156,13 @@ fun VaultFilesScreen(
                                 text = "Encrypted in this space",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                             Text(
                                 text = "Only files you import are stored here. " +
                                     "Guest app data is not encrypted automatically.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
                     }
@@ -238,12 +244,18 @@ fun VaultFilesScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.FolderOpen,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(40.dp),
-                            )
+                            Surface(
+                                modifier = Modifier.size(64.dp),
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FolderOpen,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
                             Text(
                                 text = "Your vault is empty",
                                 style = MaterialTheme.typography.titleMedium,
@@ -333,23 +345,23 @@ private fun VaultFileCard(
         ),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(48.dp),
+                    shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Description,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(12.dp),
                     )
                 }
                 Column(Modifier.weight(1f)) {
@@ -375,7 +387,7 @@ private fun VaultFileCard(
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -384,6 +396,7 @@ private fun VaultFileCard(
             ) {
                 Button(
                     onClick = onOpen,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("open_vault_${file.id}"),
@@ -398,6 +411,7 @@ private fun VaultFileCard(
                 }
                 OutlinedButton(
                     onClick = onExport,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("export_vault_${file.id}"),
