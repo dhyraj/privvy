@@ -33,12 +33,20 @@ ABI: `arm64-v8a` only for now. Android 11 (API 30) minimum.
 
 ## Status
 
-Functional prototype with guest APK import/launch, per-space app data and
-MediaStore, runtime permission mediation, encrypted vault operations, PIN and
-biometric unlock, automatic session locking, and a Quick Settings tile.
-End-to-end flows are verified on a Pixel 8a API 33 emulator; see `progress.md`.
-The original floating overlay pill is not implemented; Android Back returns from
-a guest to Privvy's space grid.
+Milestones 1–3 of `REQUIREMENTS.md` are complete; milestone 4 is complete
+except physical cross-OEM / Work Profile QA (no such devices available).
+
+Working end to end: guest APK import/launch (single and split APKs), per-space
+files/preferences/databases/MediaStore isolation, runtime permission mediation,
+best-effort Binder proxies, encrypted vault, guest-database at-rest encryption,
+PIN + biometric unlock with multi-space routing, automatic session locking
+(Home/background, screen-off, inactivity), Quick Settings tile, and a floating
+return pill over guests.
+
+Verified on Pixel 8a emulators: API 33 (4 KB pages) and API 35 (16 KB pages) —
+8/8 Maestro UI flows on each, 27/27 instrumentation tests, lint green.
+Release APK: ~3.1 MB (NFR ≤ 25 MB), cold start ~710 ms. See `progress.md`
+for the decision log, verification log, and known gaps.
 
 ## Security boundary
 
@@ -46,11 +54,16 @@ a guest to Privvy's space grid.
   this is isolation inside one app, not a device-level sandbox. Malicious
   guests sharing the UID may reach host-private files or KeyStore aliases.
 - Per-space permission decisions cover runtime permissions declared by both
-  the guest and Privvy. Direct sensitive framework APIs are not fully mediated.
-- Only files imported into the encrypted vault are encrypted. Guest app data,
-  preferences, databases, and virtual MediaStore files are not automatically
-  encrypted.
-- Static manifest receiver registration for arbitrary broadcasts and virtual
-  MediaStore `applyBatch` remain unsupported.
+  the guest and Privvy. Direct sensitive framework APIs outside the proxied
+  interfaces are not fully mediated.
+- The vault encrypts imported files. Guest databases are encrypted at rest
+  while the session is locked (encrypt-at-lock / decrypt-at-unlock), not
+  transparently while a guest runs; other guest data and virtual MediaStore
+  files are plaintext inside Privvy-private storage during a session.
+- Static manifest receivers are approximated by session-scoped host-side
+  forwarding; protected implicit system broadcasts may not arrive. Virtual
+  MediaStore `applyBatch` is media-only.
+- The return pill requires the user-granted "Display over other apps"
+  permission.
 - Four virtual space slots and `arm64-v8a` are currently supported. Cross-OEM
   and active Work Profile behavior remain unverified.

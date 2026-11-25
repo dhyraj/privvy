@@ -3,6 +3,15 @@
 Source spec: `REQUIREMENTS.md` v1.0
 Target: Android 11 (API 30) → Android 16+ (API 36), no root, cross-OEM.
 
+## Milestone status (REQUIREMENTS.md §8)
+
+| Milestone | Status |
+|-----------|--------|
+| M1 — Native IO engine & single-APK boot | ✅ Complete — Dobby libc hooks, DexClassLoader boot, APK importer, OpenCamera + guest-test-app verified end-to-end |
+| M2 — Multi-component proxies & MediaStore isolation | ✅ Complete — stub service/receiver/provider, IPackageManager/IActivityManager/INotificationManager proxies, split-APK mounting, virtual MediaStore + `applyBatch`, per-space isolation verified. Complex GMS apps (Reddit/WhatsApp) not validated: they need calling-package identity spoofing that is impossible rootless (see Known Gaps) |
+| M3 — Multi-space, UI & security hardening | ✅ Complete — 4 spaces, multi-PIN routing, biometric unlock, Keystore vault + guest-DB at-rest encryption, session guard + QS tile, floating return pill. Calculator/Notes disguise dropped by product decision D-017 (app opens as Privvy) |
+| M4 — Cross-OEM QA & Work Profile coexistence | ⚠️ Partial — memory profiling, release-size optimization, and crash-recovery hardening done; verified on Pixel 8a API 33 (4 KB) + API 35 (16 KB) emulators. Physical cross-OEM devices and an active Work Profile (requires a DPC) are unavailable in this environment |
+
 ---
 
 ## Decision Log
@@ -74,8 +83,8 @@ app/src/main/
 - [x] 2026-11-24 — **Phase A (no disguise + auth + session notification) complete**:
 - [x] 2026-11-24 — **Phase B (Milestone 1 importer + guest boot) complete**: `GuestApkImporter`, `SpaceAppRegistry`, binary AXML parser, `VirtualAppLauncher`, `GuestResources`, `guest-test-app` module; verified import + launch + isolated `/sdcard` write on Pixel 8a API 33. Maestro flow `.maestro/flows/guest-boot.yaml` (partial: import+launch+storage PASS). removed calculator/disguise code, aliases and calculator Maestro flows; added `MainActivity` (FragmentActivity) with PIN setup/unlock + biometric; updated manifest label/icon to Privvy; added `SessionGuardService` FGS notification with Close action and permissions. Compose build green; new Maestro flow `.maestro/flows/auth-session.yaml` PASS 20/20; notification verified present while unlocked and removed on lock.
 
-### 🔄 In Progress
-- [ ] Milestone 1 (Weeks 1–3): Native IO engine & single-APK boot
+### ✅ Milestones 1–3 (complete)
+- [x] Milestone 1 (Weeks 1–3): Native IO engine & single-APK boot
   - [x] Wire Dobby and get `libprivvyio.so` compiling for arm64 (vendored JingMatrix fork + NDK 26.3)
   - [x] Enable `PrivvyNative.installFileHooks()` in PrivvyApplication — all 7 libc hooks install successfully on emulator
   - [x] End-to-end hook validation on emulator: mkdir + open redirect `/data/data/com.example.guest/selftest.txt` → `virtual/user_0/.../selftest.txt`; file written and read back with correct content
@@ -95,7 +104,7 @@ app/src/main/
   - [x] Best-effort guest Binder mediation: IPackageManager identity, IActivityManager process visibility/control guards, INotificationManager lock suppression (D-025). Kernel UID/Binder calling-identity spoofing remains a rootless limitation.
   - [x] Static manifest receiver approximation (session-scoped host-side forwarding, D-026) and virtual MediaStore `applyBatch` (D-026). Real system receiver records remain a rootless limitation.
 
-### ⬜ Remaining Hardening
+### ⬜ Remaining (environment-limited)
 - [x] Guest database at-rest encryption (D-027): sealed at lock, restored at unlock, per-space Keystore keys; guest DB path isolation fixed in GuestContext. Not transparent while a guest runs (rootless SQLite codec limitation).
 - [x] Floating overlay return pill (D-028): draggable pill over guests, tap returns to Privvy without locking, removed on lock; overlay-permission enable button on Home.
 - [x] 16 KB page-size support + API 35 verification (D-029, D-030): static Dobby/STL, 16 KB-aligned libs, read-only guest dex, PIN-less-restart lockout fix; full flow suite green on API 33 (4 KB) and API 35 (16 KB) emulators.
