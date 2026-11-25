@@ -1,20 +1,20 @@
 package com.privvy.app.hook
 
 /**
- * Marker for the Binder IPC proxy layer (spec §5.1).
+ * Binder IPC proxy layer (spec §5.1).
  *
- * Each proxy in this package wraps a client-side Binder interface obtained via
- * ServiceManager / Context services and rewrites guest package/component
- * targets into Privvy stub components before forwarding to system_server:
+ * Rootless limitation: guests share Privvy's Linux UID and Binder calling
+ * identity. These proxies cannot spoof the kernel caller; they mediate the
+ * client-side framework interfaces that are reachable through reflection:
  *
- *  - ActivityManagerProxy   → IActivityTaskManager  (startActivity routing, stub mapping)
- *  - PackageManagerProxy    → IPackageManager       (query/getPackageInfo + FR-04 signature spoofing)
- *  - NotificationProxy      → INotificationManager  (FR-09 masking/suppression)
- *  - ContentProviderProxy   → IContentProvider      (FR-06 MediaStore scoped-storage redirection)
- *  - AudioServiceProxy      → IAudioService
+ *  - PackageManagerProxy    → IPackageManager      (guest package/component/signature identity)
+ *  - ActivityManagerProxy   → IActivityManager     (process/task visibility, deny host process control)
+ *  - NotificationProxy      → INotificationManager (lock suppression, host-package rewrite)
  *
- * Milestone 1 starts with ActivityManagerProxy (needed for guest activity
- * launching). The rest land in Milestone 2.
+ * Activity launch routing is handled by PrivvyInstrumentation and
+ * GuestComponentRouter rather than an IActivityTaskManager proxy. MediaStore
+ * redirection is handled by VirtualContentResolver. Direct sensitive framework
+ * APIs that do not pass through these client-side interfaces remain unmediated.
  */
 object HookLayer {
     const val DESCRIPTION = "Binder IPC proxy layer — see package docs"

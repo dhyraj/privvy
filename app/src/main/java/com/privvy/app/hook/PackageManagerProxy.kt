@@ -70,10 +70,8 @@ object PackageManagerProxy {
         }
 
         private fun handled(name: String, args: List<Any?>): Any? {
-            val app = findApp(args) ?: return when (name) {
-                "getPackagesForUid" -> emptyArray<String>()
-                else -> null
-            }
+            uidBased(name, args)?.let { return it }
+            val app = findApp(args) ?: return null
             return when (name) {
                 "getPackageInfo" -> packageInfo(app, flags(args))
                 "getApplicationInfo" -> packageInfo(app, flags(args)).applicationInfo
@@ -89,13 +87,38 @@ object PackageManagerProxy {
                     permissionResult(args, app)
                 } else null
                 "checkSignatures" -> signatureResult(args, app)
-                "getPackagesForUid" -> arrayOf(context.packageName, app.packageName)
+                "getPackagesForUid" -> guestPackagesForUid()
                 "resolveActivity", "resolveService" -> resolveComponent(app, args)
                 "resolveContentProvider" -> resolveProvider(app, args)
                 "queryIntentActivities", "queryIntentServices" -> queryComponents(app, args)
                 else -> null
             }
         }
+
+        private fun uidBased(name: String, args: List<Any?>): Any? {
+            val uid = args.filterIsInstance<Int>().firstOrNull() ?: return null
+            if (uid != Process.myUid()) return null
+            return when (name) {
+                "getPackagesForUid" -> guestPackagesForUid()
+                "getNameForUid" -> GuestIdentity.currentPackage() ?: context.packageName
+                "checkSignatures" -> PackageManager.SIGNATURE_MATCH
+                "checkPermission" -> {
+                    val permission = args.filterIsInstance<String>()
+                        .firstOrNull { it.startsWith("android.permission.") } ?: return null
+                    val packageName = GuestIdentity.currentPackage()
+                        ?: args.filterIsInstance<String>().firstOrNull { it in guestPackageNames() }
+                        ?: return null
+                    GuestPermissionStore.checkSelfPermission(context, spaceId, packageName, permission)
+                }
+                else -> null
+            }
+        }
+
+        private fun guestPackageNames(): Set<String> =
+            SpaceAppRegistry.list(context, spaceId).mapTo(HashSet()) { it.packageName }
+
+        private fun guestPackagesForUid(): Array<String> =
+            (listOf(context.packageName) + guestPackageNames()).toTypedArray()
 
         private fun findApp(args: List<Any?>): InstalledApp? {
             val packageName = args.filterIsInstance<String>().firstOrNull { candidate ->

@@ -54,6 +54,8 @@ object VirtualEngine {
             val original = field.get(current) as Instrumentation
             field.set(current, PrivvyInstrumentation(original, context))
             com.privvy.app.hook.PackageManagerProxy.install(context)
+            com.privvy.app.hook.ActivityManagerProxy.install(context)
+            com.privvy.app.hook.NotificationProxy.install(context)
             instrumentationHooked = true
             android.util.Log.i("PrivvyEngine", "ActivityThread.mInstrumentation hooked")
         } catch (t: Throwable) {

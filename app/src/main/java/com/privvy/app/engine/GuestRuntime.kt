@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.content.res.Resources
 import com.privvy.app.core.EngineState
 import com.privvy.app.core.InstalledApp
+import com.privvy.app.hook.GuestIdentity
 import dalvik.system.DexClassLoader
 
 data class GuestRuntime(
@@ -28,6 +29,7 @@ object GuestRuntimeFactory {
 
     @Synchronized
     fun get(context: Context, app: InstalledApp): GuestRuntime {
+        GuestIdentity.setProcessPackage(app.packageName)
         runtimes[app.packageName]?.let { return it }
         val loader = VirtualEngine.guestClassLoader(context, app.packageName, app.apkPaths, app.nativeLibDir)
         val resources = GuestResources.build(context, app.apkPaths)
@@ -37,6 +39,7 @@ object GuestRuntimeFactory {
     }
 
     fun createService(context: Context, app: InstalledApp, className: String): Service {
+        GuestIdentity.setProcessPackage(app.packageName)
         val runtime = get(context, app)
         val service = runtime.loader.loadClass(className).getDeclaredConstructor().newInstance() as Service
         attach(service, context as Service, runtime)

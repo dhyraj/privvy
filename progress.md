@@ -30,6 +30,7 @@ Target: Android 11 (API 30) → Android 16+ (API 36), no root, cross-OEM.
 | D-022 | 2026-11-24 | Guest boot: stub Activity → PrivvyInstrumentation instantiates the guest class from a cached DexClassLoader; guest Resources built from framework-res + guest APKs via reflection on AssetManager; storage writes redirect into `virtual/user_0`. | Verified end-to-end: guest test app shows "Hello from guest APK", and `/sdcard/guest-boot-test.txt` lands in virtual storage (PASS). |
 | D-023 | 2026-11-25 | Guest class loading is parented to the **system** ClassLoader, not the host `PathClassLoader`; after `Activity.attach`, `PrivvyInstrumentation` swaps the Activity's `mBase` for a `GuestContext` that returns guest Resources, a guest `LayoutInflater`, and the guest DexClassLoader. Guest theme is applied before the guest `onCreate`. | The host bundles AppCompat 1.2.0 transitively via `biometric`; OpenCamera bundles a newer AppCompat. Host-first delegation shadowed the guest's AppCompat classes, mismatching styleable/resource IDs (`Resources$NotFoundException`), and the host base context made inflation resolve `ContentFrameLayout` through the host loader (`ClassCastException`). Isolating the guest loader + context fixes both. |
 | D-024 | 2026-11-25 | Per-space runtime permission mediation: guest permission requests are intercepted, Allow/Deny is persisted per space and guest package, and effective access requires both guest and host grants. Missing host permissions are requested for Privvy. | `Activity.requestPermissions` is validated against the host UID; a guest package name throws `SecurityException: package=... does not belong to uid=...`. Only guest-manifest permissions also declared by the host are mediated; guests still share Privvy's UID and direct framework APIs are not fully sandboxed. |
+| D-025 | 2026-11-25 | Best-effort guest Binder mediation: `PackageManagerProxy` (identity/signatures/uid queries), `ActivityManagerProxy` (same-space process visibility, deny guest kill/force-stop of host processes), and `NotificationProxy` (lock suppression, host-package rewrite) are installed only in `:v*` processes. `GuestIdentity` tracks the current guest package for client-side attribution. | Rootless containers cannot change the kernel UID or Binder calling identity; these proxies mediate reachable client-side framework interfaces, not system_server's caller validation. Process visibility intentionally includes the host process so the guest session watchdog can verify Privvy is running. Direct sensitive APIs outside these interfaces remain unmediated. |
 
 ---
 
@@ -41,7 +42,7 @@ app/src/main/
 ├── cpp/                         # Layer 2: libprivvyio.so (Dobby inline hooks, path translation, MediaStore proxy helpers)
 └── java/com/privvy/app/
     ├── core/                    # Space model, APK registry, virtual process bookkeeping (Layer 1 state)
-    ├── hook/                    # Binder proxies: IActivityTaskManager, IPackageManager, INotificationManager, IContentProvider (Layer 1)
+    ├── hook/                    # Binder proxies: IPackageManager, IActivityManager, INotificationManager (Layer 1, guest-only)
     ├── engine/                  # DexClassLoader boot, Instrumentation/LoadedApk injection, resource injection (Layer 1)
     ├── io/                      # JNI bridge to libprivvyio.so, path translation rules (Layer 2)
     ├── security/                # Keystore AES-256-GCM per-space keys, PIN hashing (Layer 3)
@@ -86,10 +87,9 @@ app/src/main/
   - [x] Per-space runtime permission mediation for guest-requested, host-declared permissions (D-024); host/guest grant intersection verified
   - [x] Per-space guest files, SharedPreferences, and MediaStore isolation verified across Personal and Work, including preservation after switching back
   - [x] Session locking on Home/background, screen-off, and inactivity; guest-process termination and Quick Settings tile session state verified
-  - [ ] Full guest Binder identity spoofing and direct sensitive-API mediation (guests still run under Privvy's host UID)
+  - [x] Best-effort guest Binder mediation: IPackageManager identity, IActivityManager process visibility/control guards, INotificationManager lock suppression (D-025). Kernel UID/Binder calling-identity spoofing remains a rootless limitation.
 
 ### ⬜ Remaining Hardening
-- [ ] Full guest Binder identity spoofing and direct sensitive-API mediation
 - [ ] Static manifest receiver registration for arbitrary system broadcasts
 - [ ] Transparent guest database encryption (the imported vault is already encrypted)
 - [ ] Floating overlay return pill (Android Back currently returns to Privvy)
@@ -104,7 +104,7 @@ app/src/main/
 - JNI method names are the contract between `PrivvyNative.kt` and `privvyio.cpp`'s `JNINativeMethod` table — changing either side silently causes `NoSuchMethodError`/`UnsatisfiedLinkError` at runtime (bitten once, now documented in both files).
 - Debug APK is 60 MB (DOBBY_DEBUG on in Debug config + c++_shared + debug symbols). Watch release size against the ≤ 25 MB NFR; consider `DOBBY_GENERATE_SHARED=OFF` static linking later.
 - `libdobby.so` currently ships as a shared lib inside the APK; switch to static if size matters.
-- Guest apps run under Privvy's host UID and Binder identity. D-024 mediates runtime requests for permissions declared by both the guest and Privvy, but direct sensitive framework APIs can still bypass per-space decisions; malicious guests sharing the UID may reach host-private storage or KeyStore aliases.
+- Guest apps run under Privvy's host UID and Binder identity. D-024 mediates runtime requests for permissions declared by both the guest and Privvy; D-025 adds client-side IPackageManager/IActivityManager/INotificationManager guards. Direct sensitive framework APIs outside those proxied interfaces can still bypass per-space decisions; malicious guests sharing the UID may reach host-private storage or KeyStore aliases. True kernel UID/Binder calling-identity spoofing is impossible without root/system privileges.
 - Guest class loading is intentionally isolated (system ClassLoader parent). Guests that expect host-provided shared libraries (e.g. GMS) still need explicit class-loader bridges; the current guest test app and OpenCamera both bundle what they need.
 - Static manifest receiver registration for arbitrary system broadcasts and virtual MediaStore `applyBatch` remain unsupported.
 - The binary AXML parser does not yet read `android:theme` reliably (OpenCamera's `launchTheme` came back `0`); the importer now falls back to `PackageInfo.activities[].theme` and `ApplicationInfo.theme`, so theme application works. Fix the parser or drop it once hidden `PackageParser` adapters land.
@@ -141,3 +141,4 @@ app/src/main/
 | 2026-11-25 | Vault Open/preview and stored ciphertext inspection | PASS — external HTML Viewer displayed the exact sample plaintext; vault ciphertext and encrypted index contained no sample plaintext |
 | 2026-11-25 | Maestro flow `.maestro/flows/vault.yaml` | PASS — import, Open dispatch, empty Work vault, preserved Personal vault, export, delete, and final empty state |
 | 2026-11-25 | Maestro flow `.maestro/flows/auth-session.yaml` (final regression) | PASS — initial PIN setup, wrong-PIN rejection, successful unlock, and active-session state |
+| 2026-11-25 | Guest Binder mediation (D-025) | PASS — instrumentation 18/18 including GuestBinderPolicy/GuestIdentity; guest-boot, permissions, and auth-session Maestro regressions green after AM/Notification proxies; host process visibility preserved for session watchdog |
