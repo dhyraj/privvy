@@ -6,11 +6,21 @@ tags:
   - smoke
 ---
 - launchApp
+- assertVisible: "Create a PIN to protect this space"
 - tapOn: "1"
 - tapOn: "2"
 - tapOn: "3"
 - tapOn: "4"
-- tapOn: "Unlock"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
 - assertVisible: "Session active"
 - tapOn: "Import test APK (debug)"
 - extendedWaitUntil:
