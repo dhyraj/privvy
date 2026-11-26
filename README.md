@@ -44,13 +44,17 @@ PIN + biometric unlock with multi-space routing, automatic session locking
 return pill over guests.
 
 Verified on Pixel 8a emulators: API 33 (4 KB pages) and API 35 (16 KB pages) —
-8/8 Maestro UI flows on each, 27/27 instrumentation tests, lint green.
-Release APK: ~3.1 MB (NFR ≤ 25 MB), cold start ~710 ms. See `progress.md`
+9/9 Maestro UI flows on each, 27/27 instrumentation tests, lint green.
+Release APK: ~3.3 MB (NFR ≤ 25 MB), cold start ~2.0 s in repeated final API 33
+samples. See `progress.md`
 for the decision log, verification log, and known gaps.
 
-The host UI uses a custom Material 3 light/dark theme with consistent spacing,
-clear content hierarchy, accessible contrast and touch targets, and responsive
-large-text layouts across PIN unlock, Home, Spaces, and the encrypted vault.
+The host UI uses a warm-neutral, forest-green Material 3 light/dark theme with
+consistent spacing, plain language, accessible contrast and touch targets, and
+responsive large-text layouts across PIN unlock, Home, Spaces, and the encrypted
+vault. Home, Spaces, and Vault stay reachable through bottom navigation on phones
+or a navigation rail on wider screens. Installed-app cloning uses a searchable
+adaptive grid of real app icons and names, without package names or versions.
 
 ## Security boundary
 

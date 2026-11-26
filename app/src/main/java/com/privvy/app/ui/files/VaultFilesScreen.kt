@@ -4,6 +4,8 @@ package com.privvy.app.ui.files
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,23 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
@@ -42,21 +28,41 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.privvy.app.security.VaultFile
+import com.privvy.app.ui.theme.PrivvySpacing
 import java.text.DateFormat
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -68,6 +74,9 @@ import java.util.Locale
 fun VaultFilesScreen(
     files: List<VaultFile>,
     message: String?,
+    feedbackVersion: Int,
+    loadFailed: Boolean,
+    onRetry: () -> Unit,
     onBack: () -> Unit,
     onImportFile: () -> Unit,
     onOpenFile: (VaultFile) -> Unit,
@@ -75,6 +84,11 @@ fun VaultFilesScreen(
     onDeleteFile: (VaultFile) -> Unit,
 ) {
     var filePendingDeletion by remember { mutableStateOf<VaultFile?>(null) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(message, feedbackVersion) {
+        if (!message.isNullOrBlank()) listState.scrollToItem(1)
+    }
 
     BackHandler(onBack = onBack)
 
@@ -86,22 +100,15 @@ fun VaultFilesScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    containerColor = MaterialTheme.colorScheme.background,
                 ),
                 title = {
-                    Column {
-                        Text(
-                            text = "Encrypted vault",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "Private to this space",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        text = "Encrypted vault",
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 },
                 navigationIcon = {
                     IconButton(
@@ -118,21 +125,21 @@ fun VaultFilesScreen(
         },
     ) { contentPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 20.dp,
-                top = contentPadding.calculateTopPadding() + 12.dp,
-                end = 20.dp,
-                bottom = contentPadding.calculateBottomPadding() + 28.dp,
+                start = contentPadding.calculateStartPadding(LocalLayoutDirection.current) + PrivvySpacing.screen,
+                top = contentPadding.calculateTopPadding() + 8.dp,
+                end = contentPadding.calculateEndPadding(LocalLayoutDirection.current) + PrivvySpacing.screen,
+                bottom = contentPadding.calculateBottomPadding() + PrivvySpacing.section,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    ),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Row(
                         modifier = Modifier.padding(18.dp),
@@ -141,28 +148,34 @@ fun VaultFilesScreen(
                     ) {
                         Surface(
                             modifier = Modifier.size(44.dp),
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.10f),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f),
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Lock,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(11.dp),
                             )
                         }
-                        Column(Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
                             Text(
-                                text = "Encrypted in this space",
+                                text = "Your private files",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                             Text(
-                                text = "Only files you import are stored here. " +
-                                    "Guest app data is not encrypted automatically.",
+                                text = "Private to this space",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            Text(
+                                text = "Only files you add are encrypted here. Guest app data stays separate.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                         }
                     }
@@ -171,26 +184,51 @@ fun VaultFilesScreen(
 
             if (!message.isNullOrBlank()) {
                 item {
+                    val containerColor = if (loadFailed) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    }
+                    val contentColor = if (loadFailed) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    }
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        color = containerColor,
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                            Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = contentColor,
+                                )
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = contentColor,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .semantics { liveRegion = LiveRegionMode.Polite },
+                                )
+                            }
+                            if (loadFailed) {
+                                TextButton(
+                                    onClick = onRetry,
+                                    modifier = Modifier.align(Alignment.End),
+                                ) {
+                                    Text("Try again")
+                                }
+                            }
                         }
                     }
                 }
@@ -206,7 +244,6 @@ fun VaultFilesScreen(
                         Text(
                             text = "Files",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = "${files.size} ${if (files.size == 1) "file" else "files"}",
@@ -229,48 +266,9 @@ fun VaultFilesScreen(
                 }
             }
 
-            if (files.isEmpty()) {
+            if (files.isEmpty() && !loadFailed) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(64.dp),
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.FolderOpen,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(16.dp),
-                                )
-                            }
-                            Text(
-                                text = "Your vault is empty",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                textAlign = TextAlign.Center,
-                            )
-                            Text(
-                                text = "Import documents, photos, or other files to keep " +
-                                    "them encrypted and separate from your guest apps.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
+                    EmptyVaultState()
                 }
             }
 
@@ -330,6 +328,41 @@ fun VaultFilesScreen(
 }
 
 @Composable
+private fun EmptyVaultState() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.FolderOpen,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(44.dp),
+            )
+            Text(
+                text = "Your vault is empty",
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "Import documents, photos, or other files to keep them private in this space.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
 private fun VaultFileCard(
     file: VaultFile,
     onOpen: () -> Unit,
@@ -340,12 +373,13 @@ private fun VaultFileCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("vault_file_${file.id}"),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
@@ -354,7 +388,7 @@ private fun VaultFileCard(
             ) {
                 Surface(
                     modifier = Modifier.size(48.dp),
-                    shape = MaterialTheme.shapes.small,
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Icon(
@@ -368,12 +402,11 @@ private fun VaultFileCard(
                     Text(
                         text = file.displayName,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = file.mimeType.ifBlank { "Unknown type" },
+                        text = formatFileType(file),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
@@ -387,8 +420,6 @@ private fun VaultFileCard(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -396,7 +427,6 @@ private fun VaultFileCard(
             ) {
                 Button(
                     onClick = onOpen,
-                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("open_vault_${file.id}"),
@@ -411,7 +441,6 @@ private fun VaultFileCard(
                 }
                 OutlinedButton(
                     onClick = onExport,
-                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("export_vault_${file.id}"),
@@ -439,6 +468,27 @@ private fun VaultFileCard(
     }
 }
 
+internal fun vaultOpenMimeType(file: VaultFile): String {
+    if (!file.mimeType.equals("application/octet-stream", ignoreCase = true)) return file.mimeType
+    val extension = file.displayName.substringAfterLast('.', "").substringBefore(' ').lowercase(Locale.ROOT)
+    return if (extension == "txt") "text/plain" else file.mimeType
+}
+
+private fun formatFileType(file: VaultFile): String {
+    val mimeType = vaultOpenMimeType(file).lowercase(Locale.ROOT)
+    return when {
+        mimeType.startsWith("image/") -> "Image"
+        mimeType.startsWith("video/") -> "Video"
+        mimeType.startsWith("audio/") -> "Audio"
+        mimeType == "application/pdf" -> "PDF document"
+        mimeType.contains("word") || mimeType.contains("presentation") || mimeType.contains("spreadsheet") ->
+            "Document"
+        mimeType.contains("zip") || mimeType.contains("compressed") -> "Archive"
+        mimeType.startsWith("text/") -> "Text document"
+        else -> "File"
+    }
+}
+
 private fun formatFileSize(bytes: Long): String {
     if (bytes < 0L) return "Unknown size"
     if (bytes < 1024L) return "$bytes B"
@@ -447,7 +497,7 @@ private fun formatFileSize(bytes: Long): String {
     var unitIndex = 0
     while (value >= 1024.0 && unitIndex < units.lastIndex) {
         value /= 1024.0
-        unitIndex += 1
+        unitIndex++
     }
     val formatter = DecimalFormat("#,##0.#", DecimalFormatSymbols(Locale.getDefault()))
     return "${formatter.format(value)} ${units[unitIndex]}"

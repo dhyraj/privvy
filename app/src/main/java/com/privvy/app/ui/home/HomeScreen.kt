@@ -6,6 +6,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,12 +15,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,7 +41,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,20 +51,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.UploadFile
-import androidx.compose.material.icons.outlined.WorkspacePremium
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,20 +64,23 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.privvy.app.core.InstalledApp
 import com.privvy.app.core.VirtualSpace
+import com.privvy.app.ui.theme.PrivvySpacing
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     spaceName: String,
@@ -81,13 +89,13 @@ fun HomeScreen(
     apps: List<InstalledApp>,
     importing: Boolean,
     importMessage: String?,
+    feedbackVersion: Int,
     onLock: () -> Unit,
     onImportApk: () -> Unit,
     onCloneInstalled: () -> Unit,
     onImportDebugApk: (() -> Unit)?,
     onLaunchApp: (InstalledApp) -> Unit,
     onManagePermissions: (InstalledApp) -> Unit,
-    onManageSpaces: () -> Unit,
     onOpenVault: () -> Unit,
     onSwitchSpace: (Int) -> Unit,
     onRemoveApp: (InstalledApp) -> Unit,
@@ -95,22 +103,203 @@ fun HomeScreen(
 ) {
     var spaceMenuExpanded by remember { mutableStateOf(false) }
     var appPendingRemoval by remember { mutableStateOf<InstalledApp?>(null) }
+    val listState = rememberLazyListState()
 
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
             .semantics { testTagsAsResourceId = true },
         containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp, shadowElevation = 8.dp) {
+        topBar = {
+            Column {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(36.dp),
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Shield,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(8.dp),
+                                )
+                            }
+                            Text(
+                                text = "Privvy",
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = onLock,
+                            modifier = Modifier.testTag("lock_session"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Lock,
+                                contentDescription = "Lock and stop session",
+                            )
+                        }
+                    },
+                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = PrivvySpacing.screen, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            text = "Session active",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
+                if (!importMessage.isNullOrBlank()) {
+                    key(feedbackVersion) {
+                        StatusMessage(
+                            message = importMessage,
+                            modifier = Modifier.padding(
+                                horizontal = PrivvySpacing.screen,
+                                vertical = 8.dp,
+                            ),
+                        )
+                    }
+                }
+            }
+        },
+    ) { contentPadding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = contentPadding.calculateStartPadding(LocalLayoutDirection.current) + PrivvySpacing.screen,
+                top = contentPadding.calculateTopPadding() + 8.dp,
+                end = contentPadding.calculateEndPadding(LocalLayoutDirection.current) + PrivvySpacing.screen,
+                bottom = contentPadding.calculateBottomPadding() + PrivvySpacing.section,
+            ),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            item {
+                SpaceSelectorCard(
+                    spaceName = spaceName,
+                    spaces = spaces,
+                    activeSpaceId = activeSpaceId,
+                    appCount = apps.size,
+                    expanded = spaceMenuExpanded,
+                    onExpandedChange = { spaceMenuExpanded = it },
+                    onSwitchSpace = {
+                        spaceMenuExpanded = false
+                        onSwitchSpace(it)
+                    },
+                )
+            }
+
+            item {
+                AddAppPanel(
+                    importing = importing,
+                    onImportApk = onImportApk,
+                    onCloneInstalled = onCloneInstalled,
+                    onImportDebugApk = onImportDebugApk,
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Your apps",
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        text = "${apps.size} ${if (apps.size == 1) "app" else "apps"}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (apps.isEmpty()) {
+                item {
+                    EmptyAppsState()
+                }
+            } else {
+                items(apps, key = { it.packageName }) { app ->
+                    InstalledAppCard(
+                        app = app,
+                        onLaunch = { onLaunchApp(app) },
+                        onManagePermissions = { onManagePermissions(app) },
+                        onRemove = { appPendingRemoval = app },
+                    )
+                }
+            }
+
+            item {
+                VaultShortcut(onClick = onOpenVault)
+            }
+
+            if (onEnableReturnPill != null) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                                text = "Show a floating button to return from guest apps.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = onEnableReturnPill) {
+                                Text("Enable")
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
                 OutlinedButton(
                     onClick = onLock,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                        .heightIn(min = 52.dp),
+                        .heightIn(min = 52.dp)
+                        .testTag("lock_and_stop_session"),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
@@ -123,272 +312,6 @@ fun HomeScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Lock and stop session")
                 }
-            }
-        },
-    ) { contentPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primaryContainer,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Shield,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(12.dp),
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Privvy",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = "Your private workspace",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Lock,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Text(
-                        text = "Session active",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
-            }
-        }
-
-        SpaceSelectorCard(
-            spaceName = spaceName,
-            spaces = spaces,
-            activeSpaceId = activeSpaceId,
-            appCount = apps.size,
-            expanded = spaceMenuExpanded,
-            onExpandedChange = { spaceMenuExpanded = it },
-            onSwitchSpace = {
-                spaceMenuExpanded = false
-                onSwitchSpace(it)
-            },
-        )
-
-        if (onEnableReturnPill != null) {
-            TextButton(onClick = onEnableReturnPill) {
-                Text("Enable floating return pill")
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Your apps",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "${apps.size} ${if (apps.size == 1) "app" else "apps"}",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        if (apps.isEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Surface(
-                        modifier = Modifier.size(56.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Apps,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(14.dp),
-                        )
-                    }
-                    Text(
-                        text = "No apps in this space yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = "Import an APK to launch it inside Privvy.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        } else {
-            apps.forEach { app ->
-                InstalledAppCard(
-                    app = app,
-                    onLaunch = { onLaunchApp(app) },
-                    onManagePermissions = { onManagePermissions(app) },
-                    onRemove = { appPendingRemoval = app },
-                )
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.UploadFile,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Add an app",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "APKs stay in Privvy's private storage.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                if (importing) {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("apk_import_progress"),
-                    )
-                }
-                if (!importMessage.isNullOrBlank()) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Info,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                            Text(
-                                text = importMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                        }
-                    }
-                }
-                Button(
-                    onClick = onImportApk,
-                    enabled = !importing,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (importing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text("Import APK")
-                }
-                OutlinedButton(
-                    onClick = onCloneInstalled,
-                    enabled = !importing,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Clone installed app")
-                }
-                if (onImportDebugApk != null) {
-                    OutlinedButton(
-                        onClick = onImportDebugApk,
-                        enabled = !importing,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Import test APK (debug)")
-                    }
-                }
-            }
-        }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                HomeShortcut(
-                    title = "Spaces",
-                    description = "Manage isolation",
-                    icon = Icons.Outlined.WorkspacePremium,
-                    onClick = onManageSpaces,
-                    modifier = Modifier.weight(1f),
-                )
-                HomeShortcut(
-                    title = "Encrypted vault",
-                    description = "Your private files",
-                    icon = Icons.Outlined.Lock,
-                    onClick = onOpenVault,
-                    modifier = Modifier.weight(1f),
-                )
             }
         }
     }
@@ -449,28 +372,29 @@ private fun SpaceSelectorCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("space_selector"),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)),
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
-        Column {
+        Box {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(enabled = spaces.isNotEmpty()) { onExpandedChange(true) }
                     .semantics { role = Role.Button }
-                    .padding(16.dp),
+                    .padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Surface(
                     modifier = Modifier.size(48.dp),
-                    shape = MaterialTheme.shapes.small,
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.WorkspacePremium,
+                        imageVector = Icons.Outlined.FolderOpen,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(12.dp),
@@ -478,86 +402,192 @@ private fun SpaceSelectorCard(
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "ACTIVE SPACE",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
                         text = spaceName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                }
-                Box {
-                    Icon(
-                        imageVector = Icons.Outlined.ArrowDropDown,
-                        contentDescription = "Switch space",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text(
+                        text = "$appCount ${if (appCount == 1) "app" else "apps"} in this space",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { onExpandedChange(false) },
-                    ) {
-                        spaces.forEach { space ->
-                            val isActive = space.id == activeSpaceId
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(space.name)
-                                        if (isActive) {
-                                            Text(
-                                                text = "Active",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                        }
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = if (isActive) {
-                                            Icons.Outlined.Check
-                                        } else {
-                                            Icons.Outlined.Folder
-                                        },
-                                        contentDescription = null,
-                                    )
-                                },
-                                onClick = { onSwitchSpace(space.id) },
-                                modifier = Modifier.testTag("switch_space_${space.id}"),
+                }
+                Icon(
+                    imageVector = Icons.Outlined.ArrowDropDown,
+                    contentDescription = "Switch space",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { onExpandedChange(false) },
+            ) {
+                spaces.forEach { space ->
+                    val isActive = space.id == activeSpaceId
+                    DropdownMenuItem(
+                        text = { Text(space.name) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (isActive) Icons.Outlined.Check else Icons.Outlined.FolderOpen,
+                                contentDescription = null,
                             )
-                        }
-                    }
+                        },
+                        onClick = { onSwitchSpace(space.id) },
+                        modifier = Modifier
+                            .testTag("switch_space_${space.id}")
+                            .semantics { selected = isActive },
+                    )
                 }
             }
-            HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
+
+@Composable
+private fun AddAppPanel(
+    importing: Boolean,
+    onImportApk: () -> Unit,
+    onCloneInstalled: () -> Unit,
+    onImportDebugApk: (() -> Unit)?,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Shield,
+                    imageVector = Icons.Outlined.UploadFile,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
-                Text(
-                    text = "Apps and files are isolated here",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "$appCount installed",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Add an app",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = "Choose an APK or copy an app already on this device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (importing) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("apk_import_progress"),
                 )
             }
+            Button(
+                onClick = onImportApk,
+                enabled = !importing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (importing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("Import APK")
+            }
+            OutlinedButton(
+                onClick = onCloneInstalled,
+                enabled = !importing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Apps,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Clone installed app")
+            }
+            if (onImportDebugApk != null) {
+                TextButton(
+                    onClick = onImportDebugApk,
+                    enabled = !importing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Import test APK (debug)")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusMessage(message: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyAppsState() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Apps,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(40.dp),
+            )
+            Text(
+                text = "No apps in this space yet",
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "Use Add an app to get started.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -577,70 +607,49 @@ private fun InstalledAppCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (icon != null) {
                     Image(
                         bitmap = icon,
-                        contentDescription = app.label,
+                        contentDescription = null,
                         modifier = Modifier
-                            .size(52.dp)
-                            .clip(MaterialTheme.shapes.small),
+                            .size(48.dp)
+                            .clip(MaterialTheme.shapes.medium),
                     )
                 } else {
                     Surface(
-                        modifier = Modifier.size(52.dp),
-                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.size(48.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.primaryContainer,
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Apps,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(13.dp),
+                            modifier = Modifier.padding(12.dp),
                         )
                     }
                 }
-                Column(
+                Text(
+                    text = app.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Text(
-                        text = app.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = app.packageName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    app.versionName?.let { version ->
-                        Text(
-                            text = "Version $version",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                )
             }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -648,8 +657,6 @@ private fun InstalledAppCard(
             ) {
                 Button(
                     onClick = onLaunch,
-                    shape = MaterialTheme.shapes.medium,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp)
@@ -658,9 +665,9 @@ private fun InstalledAppCard(
                     Icon(
                         imageVector = Icons.Outlined.PlayArrow,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(17.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(5.dp))
                     Text("Launch")
                 }
                 IconButton(
@@ -668,7 +675,7 @@ private fun InstalledAppCard(
                     modifier = Modifier.testTag("permissions_${app.packageName}"),
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Info,
+                        imageVector = Icons.Outlined.Shield,
                         contentDescription = "Permissions for ${app.label}",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -689,44 +696,48 @@ private fun InstalledAppCard(
 }
 
 @Composable
-private fun HomeShortcut(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun VaultShortcut(onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 140.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.10f),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(11.dp),
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "Encrypted vault",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    text = "Open files kept private in this space.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
             Icon(
-                imageVector = icon,
+                imageVector = Icons.Outlined.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }

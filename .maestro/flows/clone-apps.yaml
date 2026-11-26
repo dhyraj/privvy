@@ -1,0 +1,57 @@
+appId: com.privvy.app
+name: Installed app clone grid
+tags:
+  - clone
+  - smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Create a PIN to protect this space"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Session active"
+- tapOn: "Clone installed app"
+- extendedWaitUntil:
+    visible: "Add installed app"
+    timeout: 10000
+- assertVisible:
+    id: "clone_apps_screen"
+- assertVisible: "Search apps"
+- tapOn:
+    id: "clone_app_search"
+- inputText: "calendar"
+- assertVisible: "Calendar"
+- assertNotVisible: "com.google.android.calendar"
+- tapOn:
+    id: "clone_app_com.google.android.calendar"
+- extendedWaitUntil:
+    visible: "Cloned Calendar"
+    timeout: 60000
+- assertVisible: "Session active"
+- assertVisible:
+    id: "launch_com.google.android.calendar"
+- tapOn: "Clone installed app"
+- extendedWaitUntil:
+    visible: "Add installed app"
+    timeout: 10000
+- tapOn:
+    id: "clone_app_search"
+- inputText: "no matching app"
+- assertVisible: "No apps found"
+- tapOn: "Clear search"
+- assertVisible: "Calendar"
+- tapOn:
+    id: "close_clone_apps"
+- assertVisible: "Your apps"

@@ -5,7 +5,11 @@ package com.privvy.app.ui.spaces
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,6 +52,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +60,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
@@ -68,12 +77,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun SpaceManagerScreen(
     spaces: List<VirtualSpace>,
     activeSpaceId: Int,
     message: String?,
+    feedbackVersion: Int,
     onClose: () -> Unit,
     onCreateSpace: (name: String, pin: String) -> Unit,
     onRenameSpace: (id: Int, name: String) -> Unit,
@@ -86,6 +96,11 @@ fun SpaceManagerScreen(
     var pinTarget by remember { mutableStateOf<VirtualSpace?>(null) }
     var wipeTarget by remember { mutableStateOf<VirtualSpace?>(null) }
     var deleteTarget by remember { mutableStateOf<VirtualSpace?>(null) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(message, feedbackVersion) {
+        if (!message.isNullOrBlank()) listState.scrollToItem(1)
+    }
 
     BackHandler(onBack = onClose)
 
@@ -96,22 +111,17 @@ fun SpaceManagerScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 ),
                 title = {
-                    Column {
-                        Text(
-                            text = "Spaces",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "${spaces.size} isolated ${if (spaces.size == 1) "workspace" else "workspaces"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        text = "Spaces",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 },
                 navigationIcon = {
                     IconButton(
@@ -141,11 +151,12 @@ fun SpaceManagerScreen(
         },
     ) { contentPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 20.dp,
+                start = contentPadding.calculateStartPadding(LocalLayoutDirection.current) + 20.dp,
                 top = contentPadding.calculateTopPadding() + 12.dp,
-                end = 20.dp,
+                end = contentPadding.calculateEndPadding(LocalLayoutDirection.current) + 20.dp,
                 bottom = contentPadding.calculateBottomPadding() + 112.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -153,25 +164,42 @@ fun SpaceManagerScreen(
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(18.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Text(
-                            text = "Each space keeps guest apps, permissions, and files separate. " +
-                                "The space you are using is marked as active.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(10.dp),
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "${spaces.size} isolated ${if (spaces.size == 1) "workspace" else "workspaces"}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            Text(
+                                text = "Create separate spaces for different parts of your life. " +
+                                    "Each space has its own apps, files, permissions, and PIN.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
                     }
                 }
             }
@@ -197,6 +225,7 @@ fun SpaceManagerScreen(
                                 text = message,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                             )
                         }
                     }
@@ -307,6 +336,7 @@ fun SpaceManagerScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SpaceCard(
     space: VirtualSpace,
@@ -378,9 +408,9 @@ private fun SpaceCard(
                 }
             }
 
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (isActive) {
                     StatusPill(
@@ -405,15 +435,15 @@ private fun SpaceCard(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(
                     onClick = onRename,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                         .testTag("rename_space_${space.id}"),
                 ) {
                     Icon(
@@ -421,14 +451,14 @@ private fun SpaceCard(
                         contentDescription = null,
                         modifier = Modifier.size(17.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text("Rename")
                 }
                 OutlinedButton(
                     onClick = onChangePin,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                         .testTag("change_pin_${space.id}"),
                 ) {
                     Icon(
@@ -436,11 +466,8 @@ private fun SpaceCard(
                         contentDescription = null,
                         modifier = Modifier.size(17.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "Change PIN",
-                        maxLines = 1,
-                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Change PIN")
                 }
             }
 

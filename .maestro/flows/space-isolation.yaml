@@ -58,14 +58,11 @@ tags:
 - tapOn:
     id: "create_space_name"
 - inputText: "Work"
-- tapOn:
-    id: "create_space_pin"
+- pressKey: ENTER
 - inputText: "5678"
-- tapOn:
-    id: "create_space_pin_confirm"
+- pressKey: ENTER
 - inputText: "5678"
-- tapOn:
-    id: "confirm_create_space"
+- pressKey: ENTER
 - assertVisible: "Created Work"
 - tapOn:
     id: "close_space_manager"

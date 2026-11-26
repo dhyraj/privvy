@@ -31,22 +31,30 @@ tags:
 - assertVisible: "Private to this space"
 - tapOn:
     id: "import_vault_file"
+- extendedWaitUntil:
+    visible: "Show roots"
+    timeout: 10000
 - tapOn:
     point: 80, 120
-- tapOn: "Downloads"
-- assertVisible: "vault-sample\\.txt.*"
-- tapOn: "vault-sample\\.txt.*"
 - extendedWaitUntil:
-    visible: "Imported vault-sample\\.txt.*"
+    visible: "Downloads"
+    timeout: 10000
+- tapOn: "Downloads"
+- extendedWaitUntil:
+    visible: "vault-sample.*\\.txt.*"
+    timeout: 10000
+- tapOn: "vault-sample.*\\.txt.*"
+- extendedWaitUntil:
+    visible: "Imported vault-sample.*\\.txt.*"
     timeout: 20000
-- assertVisible: "vault-sample\\.txt.*"
-- assertVisible: "(text/plain|application/octet-stream)"
+- assertVisible: "vault-sample.*\\.txt.*"
+- assertVisible: "Text document"
 - tapOn: "Open"
 - extendedWaitUntil:
-    visible: "Open with.*"
+    visible: "HTML Viewer"
     timeout: 10000
 - pressKey: BACK
-- assertVisible: "vault-sample\\.txt.*"
+- assertVisible: "vault-sample.*\\.txt.*"
 - tapOn:
     id: "back_from_vault"
 - scrollUntilVisible:
@@ -58,14 +66,11 @@ tags:
 - tapOn:
     id: "create_space_name"
 - inputText: "Work"
-- tapOn:
-    id: "create_space_pin"
+- pressKey: ENTER
 - inputText: "5678"
-- tapOn:
-    id: "create_space_pin_confirm"
+- pressKey: ENTER
 - inputText: "5678"
-- tapOn:
-    id: "confirm_create_space"
+- pressKey: ENTER
 - assertVisible: "Created Work"
 - tapOn:
     id: "close_space_manager"
@@ -96,16 +101,16 @@ tags:
     element: "Encrypted vault"
     direction: DOWN
 - tapOn: "Encrypted vault"
-- assertVisible: "vault-sample\\.txt.*"
+- assertVisible: "vault-sample.*\\.txt.*"
 - tapOn: "Export"
-- assertVisible: "vault-sample\\.txt.*"
+- assertVisible: "vault-sample.*\\.txt.*"
 - inputText: "vault-export.txt"
 - tapOn: "SAVE"
 - extendedWaitUntil:
-    visible: "Exported vault-sample\\.txt.*"
+    visible: "Exported vault-sample.*\\.txt.*"
     timeout: 20000
-- tapOn: "Delete vault-sample\\.txt.*"
+- tapOn: "Delete vault-sample.*\\.txt.*"
 - tapOn:
     id: "confirm_delete_file"
-- assertVisible: "Deleted vault-sample\\.txt.*"
+- assertVisible: "Deleted vault-sample.*\\.txt.*"
 - assertVisible: "Your vault is empty"

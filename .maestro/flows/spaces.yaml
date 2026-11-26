@@ -36,14 +36,11 @@ tags:
 - tapOn:
     id: "create_space_name"
 - inputText: "Work"
-- tapOn:
-    id: "create_space_pin"
+- pressKey: ENTER
 - inputText: "5678"
-- tapOn:
-    id: "create_space_pin_confirm"
+- pressKey: ENTER
 - inputText: "5678"
-- tapOn:
-    id: "confirm_create_space"
+- pressKey: ENTER
 - assertVisible: "Created Work"
 - tapOn:
     id: "rename_space_1"
@@ -51,8 +48,7 @@ tags:
     id: "rename_space_name"
 - eraseText
 - inputText: "Work Vault"
-- tapOn:
-    id: "confirm_rename_space"
+- pressKey: ENTER
 - assertVisible: "Space renamed"
 - tapOn:
     id: "close_space_manager"
@@ -80,11 +76,9 @@ tags:
 - tapOn:
     id: "change_space_pin"
 - inputText: "9999"
-- tapOn:
-    id: "change_space_pin_confirm"
+- pressKey: ENTER
 - inputText: "9999"
-- tapOn:
-    id: "confirm_change_pin"
+- pressKey: ENTER
 - assertVisible: "PIN updated"
 - tapOn:
     id: "close_space_manager"
@@ -116,6 +110,10 @@ tags:
     element: "Spaces"
     direction: DOWN
 - tapOn: "Spaces"
+- scrollUntilVisible:
+    element:
+      id: "wipe_space_1"
+    direction: DOWN
 - tapOn:
     id: "wipe_space_1"
 - tapOn:
@@ -128,6 +126,10 @@ tags:
     element: "Spaces"
     direction: DOWN
 - tapOn: "Spaces"
+- scrollUntilVisible:
+    element:
+      id: "delete_space_1"
+    direction: DOWN
 - tapOn:
     id: "delete_space_1"
 - tapOn:

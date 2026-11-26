@@ -1,7 +1,6 @@
 package com.privvy.app.ui
 
 import android.Manifest
-import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -20,6 +19,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.graphics.drawable.toBitmap
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.privvy.app.BuildConfig
@@ -50,9 +52,16 @@ import com.privvy.app.security.SessionGuardService
 import com.privvy.app.security.SessionLockManager
 import com.privvy.app.security.VaultCrypto
 import com.privvy.app.security.VaultFile
+import com.privvy.app.ui.apps.CloneAppOption
+import com.privvy.app.ui.apps.CloneAppsScreen
+import com.privvy.app.ui.apps.PermissionChoice
+import com.privvy.app.ui.apps.PermissionManagerDialog
 import com.privvy.app.ui.auth.LockScreen
 import com.privvy.app.ui.files.VaultFilesScreen
+import com.privvy.app.ui.files.vaultOpenMimeType
 import com.privvy.app.ui.home.HomeScreen
+import com.privvy.app.ui.navigation.PrivvyDestination
+import com.privvy.app.ui.navigation.PrivvyNavigationScaffold
 import com.privvy.app.ui.spaces.SpaceManagerScreen
 import com.privvy.app.ui.theme.PrivvyTheme
 import kotlinx.coroutines.Dispatchers
@@ -66,7 +75,7 @@ import java.io.File
 @OptIn(ExperimentalComposeUiApi::class)
 class MainActivity : FragmentActivity() {
 
-    private enum class Screen { HOME, SPACES, VAULT }
+    private enum class Screen { HOME, SPACES, VAULT, CLONE_APPS }
 
     private lateinit var repository: FileSpaceRepository
     private var spaces by mutableStateOf(emptyList<VirtualSpace>())
@@ -86,13 +95,23 @@ class MainActivity : FragmentActivity() {
     private var importMessage by mutableStateOf<String?>(null)
     private var managerMessage by mutableStateOf<String?>(null)
     private var vaultMessage by mutableStateOf<String?>(null)
+    private var importFeedbackVersion by mutableStateOf(0)
+    private var managerFeedbackVersion by mutableStateOf(0)
+    private var vaultFeedbackVersion by mutableStateOf(0)
+    private var vaultLoadFailed by mutableStateOf(false)
     private var pendingExport by mutableStateOf<VaultFile?>(null)
     private var pendingExportEpoch = 0L
     private var vaultPickerEpoch = 0L
     private var vaultPickerSpaceId = -1
     private var vaultJob: Job? = null
     private var systemPickerActive = false
-    private var permissionsDialog: AlertDialog? = null
+    private var installedApps by mutableStateOf(emptyList<CloneAppOption>())
+    private var installedAppsLoading by mutableStateOf(false)
+    private var installedAppsError by mutableStateOf<String?>(null)
+    private var installedAppsJob: Job? = null
+    private var installedAppsRequest = 0L
+    private var permissionApp by mutableStateOf<InstalledApp?>(null)
+    private var permissionChoices by mutableStateOf(emptyList<PermissionChoice>())
 
     private lateinit var biometricPrompt: BiometricPrompt
 
@@ -140,7 +159,10 @@ class MainActivity : FragmentActivity() {
         spaces = repository.listSpaces()
         activeSpaceId = SessionLockManager.activeSpaceId(this).takeIf { id -> spaces.any { it.id == id } } ?: 0
         setupSpaceId = spaces.first().id
-        screen = savedInstanceState?.getString(KEY_SCREEN)?.let(Screen::valueOf) ?: Screen.HOME
+        screen = savedInstanceState?.getString(KEY_SCREEN)
+            ?.let(Screen::valueOf)
+            ?.takeUnless { it == Screen.CLONE_APPS }
+            ?: Screen.HOME
         ContextCompat.registerReceiver(
             this,
             lockReceiver,
@@ -185,82 +207,139 @@ class MainActivity : FragmentActivity() {
             )
             return
         }
-        when (screen) {
-            Screen.HOME -> {
-                val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                    systemPickerActive = false
-                    if (uri != null) importApk(uri)
+        val currentDestination = when (screen) {
+            Screen.SPACES -> PrivvyDestination.SPACES
+            Screen.VAULT -> PrivvyDestination.VAULT
+            else -> PrivvyDestination.HOME
+        }
+        PrivvyNavigationScaffold(
+            current = currentDestination,
+            onNavigate = { destination ->
+                if (screen == Screen.CLONE_APPS) dismissInstalledAppPicker()
+                when (destination) {
+                    PrivvyDestination.HOME -> screen = Screen.HOME
+                    PrivvyDestination.SPACES -> {
+                        managerMessage = null
+                        screen = Screen.SPACES
+                    }
+                    PrivvyDestination.VAULT -> {
+                        vaultMessage = null
+                        refreshVault()
+                        screen = Screen.VAULT
+                    }
                 }
-                HomeScreen(
-                    spaceName = spaces.firstOrNull { it.id == activeSpaceId }?.name ?: "Space $activeSpaceId",
-                    spaces = spaces,
-                    activeSpaceId = activeSpaceId,
-                    apps = apps,
-                    importing = importing,
-                    importMessage = importMessage,
-                    onLock = { lockSession() },
-                    onImportApk = {
-                        systemPickerActive = true
-                        importLauncher.launch(
-                            arrayOf(
-                                "application/vnd.android.package-archive",
-                                "application/octet-stream",
-                                "application/zip",
-                                "*/*",
-                            ),
-                        )
-                    },
-                    onCloneInstalled = ::showInstalledAppPicker,
-                    onImportDebugApk = if (BuildConfig.DEBUG) ({ importDebugApk() }) else null,
-                    onLaunchApp = ::launchApp,
-                    onManagePermissions = ::showPermissionManager,
-                    onManageSpaces = { managerMessage = null; screen = Screen.SPACES },
-                    onOpenVault = { vaultMessage = null; refreshVault(); screen = Screen.VAULT },
-                    onSwitchSpace = ::switchSpace,
-                    onRemoveApp = ::removeApp,
-                    onEnableReturnPill = if (overlayGranted) null else {
-                        {
-                            runCatching {
-                                startActivity(
-                                    android.content.Intent(
-                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        android.net.Uri.parse("package:$packageName"),
+            },
+        ) { contentPadding ->
+            Box(Modifier.padding(contentPadding)) {
+                when (screen) {
+                    Screen.HOME -> {
+                        val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                            systemPickerActive = false
+                            if (uri != null) importApk(uri)
+                        }
+                        HomeScreen(
+                            spaceName = spaces.firstOrNull { it.id == activeSpaceId }?.name ?: "Space $activeSpaceId",
+                            spaces = spaces,
+                            activeSpaceId = activeSpaceId,
+                            apps = apps,
+                            importing = importing,
+                            importMessage = importMessage,
+                            feedbackVersion = importFeedbackVersion,
+                            onLock = { lockSession() },
+                            onImportApk = {
+                                systemPickerActive = true
+                                importLauncher.launch(
+                                    arrayOf(
+                                        "application/vnd.android.package-archive",
+                                        "application/octet-stream",
+                                        "application/zip",
+                                        "*/*",
                                     ),
                                 )
-                            }
-                        }
-                    },
-                )
+                            },
+                            onCloneInstalled = ::showInstalledAppPicker,
+                            onImportDebugApk = if (BuildConfig.DEBUG) ({ importDebugApk() }) else null,
+                            onLaunchApp = ::launchApp,
+                            onManagePermissions = ::showPermissionManager,
+                            onOpenVault = { vaultMessage = null; refreshVault(); screen = Screen.VAULT },
+                            onSwitchSpace = ::switchSpace,
+                            onRemoveApp = ::removeApp,
+                            onEnableReturnPill = if (overlayGranted) null else {
+                                {
+                                    runCatching {
+                                        startActivity(
+                                            android.content.Intent(
+                                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                android.net.Uri.parse("package:$packageName"),
+                                            ),
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    }
+                    Screen.SPACES -> SpaceManagerScreen(
+                        spaces = spaces,
+                        activeSpaceId = activeSpaceId,
+                        message = managerMessage,
+                        feedbackVersion = managerFeedbackVersion,
+                        onClose = { screen = Screen.HOME },
+                        onCreateSpace = ::createSpace,
+                        onRenameSpace = ::renameSpace,
+                        onWipeSpace = ::wipeSpace,
+                        onDeleteSpace = ::deleteSpace,
+                        onChangePin = ::changePin,
+                    )
+                    Screen.VAULT -> VaultFilesScreen(
+                        files = vaultFiles,
+                        message = vaultMessage,
+                        feedbackVersion = vaultFeedbackVersion,
+                        loadFailed = vaultLoadFailed,
+                        onRetry = ::refreshVault,
+                        onBack = { screen = Screen.HOME },
+                        onImportFile = {
+                            systemPickerActive = true
+                            vaultPickerEpoch = sessionEpoch
+                            vaultPickerSpaceId = activeSpaceId
+                            vaultPicker.launch(arrayOf("*/*"))
+                        },
+                        onOpenFile = ::openVaultFile,
+                        onExportFile = {
+                            systemPickerActive = true
+                            pendingExport = it
+                            pendingExportEpoch = sessionEpoch
+                            vaultExporter.launch(it.displayName)
+                        },
+                        onDeleteFile = ::deleteVaultFile,
+                    )
+                    Screen.CLONE_APPS -> CloneAppsScreen(
+                        apps = installedApps,
+                        loading = installedAppsLoading,
+                        errorMessage = installedAppsError,
+                        onRetry = ::showInstalledAppPicker,
+                        onBack = ::dismissInstalledAppPicker,
+                        onClone = { app ->
+                            dismissInstalledAppPicker()
+                            cloneInstalled(app.packageName)
+                        },
+                    )
+                }
             }
-            Screen.SPACES -> SpaceManagerScreen(
-                spaces = spaces,
-                activeSpaceId = activeSpaceId,
-                message = managerMessage,
-                onClose = { screen = Screen.HOME },
-                onCreateSpace = ::createSpace,
-                onRenameSpace = ::renameSpace,
-                onWipeSpace = ::wipeSpace,
-                onDeleteSpace = ::deleteSpace,
-                onChangePin = ::changePin,
-            )
-            Screen.VAULT -> VaultFilesScreen(
-                files = vaultFiles,
-                message = vaultMessage,
-                onBack = { screen = Screen.HOME },
-                onImportFile = {
-                    systemPickerActive = true
-                    vaultPickerEpoch = sessionEpoch
-                    vaultPickerSpaceId = activeSpaceId
-                    vaultPicker.launch(arrayOf("*/*"))
+        }
+
+        permissionApp?.let { app ->
+            PermissionManagerDialog(
+                app = app,
+                choices = permissionChoices,
+                onDismiss = {
+                    permissionApp = null
+                    permissionChoices = emptyList()
                 },
-                onOpenFile = ::openVaultFile,
-                onExportFile = {
-                    systemPickerActive = true
-                    pendingExport = it
-                    pendingExportEpoch = sessionEpoch
-                    vaultExporter.launch(it.displayName)
+                onSave = { updated ->
+                    savePermissions(app, updated)
+                    permissionApp = null
+                    permissionChoices = emptyList()
                 },
-                onDeleteFile = ::deleteVaultFile,
             )
         }
     }
@@ -328,7 +407,14 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun applyLock(keepRequired: Boolean = false) {
-        permissionsDialog?.dismiss()
+        permissionApp = null
+        permissionChoices = emptyList()
+        installedAppsRequest++
+        installedAppsJob?.cancel()
+        installedAppsJob = null
+        installedApps = emptyList()
+        installedAppsLoading = false
+        installedAppsError = null
         sessionEpoch++
         locked = true
         importing = false
@@ -336,6 +422,8 @@ class MainActivity : FragmentActivity() {
         screen = Screen.HOME
         apps.clear()
         vaultFiles = emptyList()
+        vaultMessage = null
+        vaultLoadFailed = false
         importMessage = null
         pendingExport = null
         pendingExportEpoch = 0L
@@ -386,6 +474,21 @@ class MainActivity : FragmentActivity() {
         apps.addAll(SpaceAppRegistry.list(this, activeSpaceId))
     }
 
+    private fun setImportFeedback(message: String) {
+        importMessage = message
+        importFeedbackVersion++
+    }
+
+    private fun setManagerFeedback(message: String) {
+        managerMessage = message
+        managerFeedbackVersion++
+    }
+
+    private fun setVaultFeedback(message: String) {
+        vaultMessage = message
+        vaultFeedbackVersion++
+    }
+
     private fun importApk(uri: Uri) {
         runAppImport("Imported") { spaceId ->
             GuestApkImporter.importFromUri(this@MainActivity, uri, spaceId)
@@ -393,21 +496,63 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun showInstalledAppPicker() {
-        val installed = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-            .asSequence()
-            .filter { it.packageName != packageName && packageManager.getLaunchIntentForPackage(it.packageName) != null }
-            .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
-            .toList()
-        if (installed.isEmpty()) {
-            importMessage = "No launchable installed apps are visible"
-            return
+        val epoch = sessionEpoch
+        val request = ++installedAppsRequest
+        installedAppsJob?.cancel()
+        installedApps = emptyList()
+        installedAppsLoading = true
+        installedAppsError = null
+        screen = Screen.CLONE_APPS
+        installedAppsJob = lifecycleScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+                        .asSequence()
+                        .filter {
+                            ensureActive()
+                            it.packageName != packageName &&
+                                packageManager.getLaunchIntentForPackage(it.packageName) != null
+                        }
+                        .mapNotNull { info ->
+                            ensureActive()
+                            val label = info.loadLabel(packageManager).toString()
+                                .takeUnless { it.isBlank() || it == info.packageName }
+                                ?: return@mapNotNull null
+                            val icon = runCatching {
+                                info.loadIcon(packageManager).toBitmap(160, 160)
+                            }.getOrNull() ?: return@mapNotNull null
+                            CloneAppOption(
+                                packageName = info.packageName,
+                                label = label,
+                                icon = icon,
+                            )
+                        }
+                        .sortedBy { it.label.lowercase() }
+                        .toList()
+                }
+            }
+            ensureActive()
+            if (request != installedAppsRequest || epoch != sessionEpoch || locked ||
+                screen != Screen.CLONE_APPS
+            ) return@launch
+            installedAppsLoading = false
+            installedAppsJob = null
+            result.onSuccess { installedApps = it }
+                .onFailure { error ->
+                    installedAppsError = "Could not load installed apps. Try again."
+                    Log.e("PrivvyClone", "could not load installed apps", error)
+                }
         }
-        val labels = installed.map { "${it.loadLabel(packageManager)}\n${it.packageName}" }.toTypedArray()
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Clone installed app")
-            .setItems(labels) { _, index -> cloneInstalled(installed[index].packageName) }
-            .setNegativeButton("Cancel", null)
-            .show()
+    }
+
+    private fun dismissInstalledAppPicker() {
+        installedAppsRequest++
+        installedAppsJob?.cancel()
+        installedAppsJob = null
+        installedApps = emptyList()
+        installedAppsLoading = false
+        installedAppsError = null
+        screen = Screen.HOME
     }
 
     private fun cloneInstalled(packageName: String) {
@@ -419,7 +564,7 @@ class MainActivity : FragmentActivity() {
     private fun importDebugApk() {
         val staged = File(filesDir, "import/guest-test-app.apk")
         if (!staged.exists()) {
-            importMessage = "Debug APK not found at ${staged.absolutePath}. Push it with run-as first."
+            setImportFeedback("The test app is not available on this device.")
             return
         }
         runAppImport("Imported") { spaceId ->
@@ -441,10 +586,10 @@ class MainActivity : FragmentActivity() {
                 result.onSuccess { app ->
                     apps.removeAll { it.packageName == app.packageName }
                     apps.add(app)
-                    importMessage = "$successVerb ${app.label}"
+                    setImportFeedback("$successVerb ${app.label}")
                     com.privvy.app.engine.GuestReceiverRegistrar.refresh(this@MainActivity)
                 }.onFailure { error ->
-                    importMessage = "Import failed: ${error.message}"
+                    setImportFeedback("Could not import app. Try again.")
                     Log.e("PrivvyImport", "import failed", error)
                 }
             }
@@ -453,55 +598,50 @@ class MainActivity : FragmentActivity() {
 
     private fun launchApp(app: InstalledApp) {
         runCatching { VirtualAppLauncher.launch(this, activeSpaceId, app) }
-            .onFailure { error -> importMessage = "Launch failed: ${error.message}" }
+            .onFailure { error ->
+                setImportFeedback("Could not launch ${app.label}. Try again.")
+                Log.e("PrivvyLaunch", "launch failed", error)
+            }
     }
 
     private fun showPermissionManager(app: InstalledApp) {
         val permissions = GuestPermissionStore.supportedRuntimePermissions(this, app.requestedPermissions)
         if (permissions.isEmpty()) {
-            importMessage = "${app.label} has no manageable runtime permissions"
+            setImportFeedback("${app.label} has no manageable runtime permissions")
             return
         }
-        val labels = permissions.map { permission ->
-            val label = runCatching {
-                packageManager.getPermissionInfo(permission, 0).loadLabel(packageManager).toString()
-            }.getOrDefault(permission.substringAfterLast('.'))
-            if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
-                label
+        permissionChoices = permissions.map { permission ->
+            PermissionChoice(
+                permission = permission,
+                label = runCatching {
+                    packageManager.getPermissionInfo(permission, 0).loadLabel(packageManager).toString()
+                }.getOrDefault(permission.substringAfterLast('.')),
+                granted = GuestPermissionStore.isGranted(this, activeSpaceId, app.packageName, permission),
+                androidGranted = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED,
+            )
+        }
+        permissionApp = app
+    }
+
+    private fun savePermissions(app: InstalledApp, choices: List<PermissionChoice>) {
+        val saved = runCatching {
+            choices.forEach { choice ->
+                GuestPermissionStore.setGranted(
+                    this,
+                    activeSpaceId,
+                    app.packageName,
+                    choice.permission,
+                    choice.granted,
+                )
+            }
+        }.isSuccess
+        setImportFeedback(
+            if (saved) {
+                "Permissions updated for ${app.label}"
             } else {
-                "$label (Android permission not granted)"
-            }
-        }.toTypedArray()
-        val checked = permissions.map {
-            GuestPermissionStore.isGranted(this, activeSpaceId, app.packageName, it)
-        }.toBooleanArray()
-        permissionsDialog = AlertDialog.Builder(this)
-            .setTitle("Permissions for ${app.label}")
-            .setMultiChoiceItems(labels, checked) { _, index, isChecked -> checked[index] = isChecked }
-            .setPositiveButton("Save") { _, _ ->
-                val saved = runCatching {
-                    permissions.forEachIndexed { index, permission ->
-                        GuestPermissionStore.setGranted(
-                            this,
-                            activeSpaceId,
-                            app.packageName,
-                            permission,
-                            checked[index],
-                        )
-                    }
-                }.isSuccess
-                importMessage = if (saved) {
-                    "Permissions updated for ${app.label}"
-                } else {
-                    "Could not update permissions for ${app.label}"
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-            .also { dialog ->
-                dialog.setOnDismissListener { permissionsDialog = null }
-                dialog.show()
-            }
+                "Could not update permissions for ${app.label}"
+            },
+        )
     }
 
     private fun removeApp(app: InstalledApp) {
@@ -511,28 +651,38 @@ class MainActivity : FragmentActivity() {
             VirtualEngine.clearGuestClassLoader(app.packageName)
         }.onSuccess {
             apps.removeAll { it.packageName == app.packageName }
-            importMessage = "Removed ${app.label} from this space"
-        }.onFailure {
-            importMessage = "Could not remove ${app.label}: ${it.message}"
+            setImportFeedback("Removed ${app.label} from this space")
+        }.onFailure { error ->
+            setImportFeedback("Could not remove ${app.label}. Try again.")
+            Log.e("PrivvyApps", "remove failed", error)
         }
     }
 
     private fun createSpace(name: String, pin: String) {
         runCatching { repository.createSpace(name, pin.toCharArray()) }
-            .onSuccess { spaces = repository.listSpaces(); managerMessage = "Created ${it.name}" }
-            .onFailure { managerMessage = it.message ?: "Could not create space" }
+            .onSuccess {
+                spaces = repository.listSpaces()
+                setManagerFeedback("Created ${it.name}")
+            }
+            .onFailure { setManagerFeedback("Could not create space. Try again.") }
     }
 
     private fun renameSpace(id: Int, name: String) {
         runCatching { repository.renameSpace(id, name) }
-            .onSuccess { spaces = repository.listSpaces(); managerMessage = "Space renamed" }
-            .onFailure { managerMessage = it.message ?: "Could not rename space" }
+            .onSuccess {
+                spaces = repository.listSpaces()
+                setManagerFeedback("Space renamed")
+            }
+            .onFailure { setManagerFeedback("Could not rename space. Try again.") }
     }
 
     private fun changePin(id: Int, pin: String) {
         runCatching { repository.setPin(id, pin) }
-            .onSuccess { spaces = repository.listSpaces(); managerMessage = "PIN updated" }
-            .onFailure { managerMessage = it.message ?: "Could not update PIN" }
+            .onSuccess {
+                spaces = repository.listSpaces()
+                setManagerFeedback("PIN updated")
+            }
+            .onFailure { setManagerFeedback("Could not update PIN. Try again.") }
     }
 
     private fun wipeSpace(id: Int) {
@@ -544,8 +694,8 @@ class MainActivity : FragmentActivity() {
         }.onSuccess {
             clearVaultPreviews()
             if (id == activeSpaceId) { loadApps(); refreshVault() }
-            managerMessage = "Space wiped"
-        }.onFailure { managerMessage = it.message ?: "Could not wipe space" }
+            setManagerFeedback("Space wiped")
+        }.onFailure { setManagerFeedback("Could not wipe space. Try again.") }
     }
 
     private fun deleteSpace(id: Int) {
@@ -558,15 +708,23 @@ class MainActivity : FragmentActivity() {
                 activeSpaceId = spaces.first().id
                 lockSession()
             }
-            managerMessage = "Space deleted"
-        }.onFailure { managerMessage = it.message ?: "Could not delete space" }
+            setManagerFeedback("Space deleted")
+        }.onFailure { setManagerFeedback("Could not delete space. Try again.") }
     }
 
     private fun refreshVault() {
-        val result = runCatching { VaultCrypto.list(this, activeSpaceId) }
-        result.onSuccess { vaultFiles = it }.onFailure {
-            vaultMessage = "Could not open vault: ${it.message}"
-        }
+        val spaceId = activeSpaceId
+        vaultMessage = null
+        val result = runCatching { VaultCrypto.list(this, spaceId) }
+        if (locked || spaceId != activeSpaceId) return
+        vaultLoadFailed = false
+        result.onSuccess { vaultFiles = it }
+            .onFailure { error ->
+                vaultFiles = emptyList()
+                vaultLoadFailed = true
+                setVaultFeedback("Could not open vault. Try again.")
+                Log.e("PrivvyVault", "vault list failed", error)
+            }
     }
 
     private fun importVaultFile(uri: Uri, epoch: Long, spaceId: Int) {
@@ -593,13 +751,17 @@ class MainActivity : FragmentActivity() {
             withContext(Dispatchers.Main) {
                 if (epoch != sessionEpoch || spaceId != activeSpaceId) return@withContext
                 refreshVault()
-                vaultMessage = result.fold(
-                    onSuccess = { "Imported ${it.displayName}" },
-                    onFailure = {
-                        Log.e("PrivvyVault", "vault import failed", it)
-                        "Import failed: ${it.message ?: it.javaClass.simpleName}"
-                    },
-                )
+                if (!vaultLoadFailed) {
+                    setVaultFeedback(
+                        result.fold(
+                            onSuccess = { "Imported ${it.displayName}" },
+                            onFailure = {
+                                Log.e("PrivvyVault", "vault import failed", it)
+                                "Could not import file. Check that it is 64 MiB or smaller and try again."
+                            },
+                        ),
+                    )
+                }
             }
         }
     }
@@ -627,7 +789,11 @@ class MainActivity : FragmentActivity() {
     private fun deleteVaultFile(file: VaultFile) {
         val deleted = runCatching { VaultCrypto.delete(this, file) }.getOrDefault(false)
         refreshVault()
-        vaultMessage = if (deleted) "Deleted ${file.displayName}" else "Could not delete file"
+        if (!vaultLoadFailed) {
+            setVaultFeedback(
+                if (deleted) "Deleted ${file.displayName}" else "Could not delete file. Try again.",
+            )
+        }
     }
 
     private fun exportVaultFile(file: VaultFile, uri: Uri, epoch: Long) {
@@ -643,7 +809,15 @@ class MainActivity : FragmentActivity() {
             }
             withContext(Dispatchers.Main) {
                 if (epoch != sessionEpoch) return@withContext
-                vaultMessage = if (result.getOrDefault(false)) "Exported ${file.displayName}" else "Export failed"
+                if (!vaultLoadFailed) {
+                    setVaultFeedback(
+                        if (result.getOrDefault(false)) {
+                            "Exported ${file.displayName}"
+                        } else {
+                            "Could not export file. Try again."
+                        },
+                    )
+                }
             }
         }
     }
@@ -665,7 +839,7 @@ class MainActivity : FragmentActivity() {
                     val target = File(directory, "${file.id}-${System.nanoTime()}-$safeName")
                     preview = target
                     target.writeBytes(plaintext)
-                    FileProvider.getUriForFile(this@MainActivity, "$packageName.files", target) to file.mimeType
+                    FileProvider.getUriForFile(this@MainActivity, "$packageName.files", target) to vaultOpenMimeType(file)
                 } finally {
                     plaintext.fill(0)
                 }
@@ -677,17 +851,20 @@ class MainActivity : FragmentActivity() {
                 }
                 result.onSuccess { (uri, mimeType) ->
                     runCatching {
-                        startActivity(
-                            Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeType)
-                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
-                        )
+                        val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeType)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivity(Intent.createChooser(viewIntent, "Open with"))
                     }.onFailure {
                         preview?.delete()
-                        vaultMessage = "No app can open ${file.mimeType}"
+                        if (!vaultLoadFailed) {
+                            setVaultFeedback("No app on this device can open this file.")
+                        }
                     }
                 }.onFailure {
                     preview?.delete()
-                    vaultMessage = "Could not decrypt ${file.displayName}"
+                    if (!vaultLoadFailed) {
+                        setVaultFeedback("Could not decrypt ${file.displayName}")
+                    }
                 }
             }
         }
@@ -700,7 +877,7 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString(KEY_SCREEN, screen.name)
+        outState.putString(KEY_SCREEN, if (screen == Screen.CLONE_APPS) Screen.HOME.name else screen.name)
         super.onSaveInstanceState(outState)
     }
 
