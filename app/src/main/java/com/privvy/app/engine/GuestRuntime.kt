@@ -101,6 +101,7 @@ object GuestRuntimeFactory {
         runtimes.remove(packageName)
     }
 
+    /** Clears every cached guest runtime after guest processes stop. */
     @Synchronized
     fun clearAll() {
         runtimes.clear()

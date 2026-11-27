@@ -43,5 +43,6 @@ interface SpaceRepository {
     fun findSpaceByPin(pin: String): VirtualSpace?
     fun deleteSpace(id: Int)
     fun wipeSpace(id: Int)
+    /** Resets metadata to the single PIN-less default space. */
     fun resetToDefault(): VirtualSpace
 }

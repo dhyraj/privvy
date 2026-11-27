@@ -22,6 +22,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/** Sandboxed coverage for global data/key removal, host-file preservation, and idempotence. */
 @RunWith(AndroidJUnit4::class)
 class GlobalCleanupTest {
 

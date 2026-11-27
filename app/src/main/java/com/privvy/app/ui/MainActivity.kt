@@ -745,6 +745,7 @@ class MainActivity : FragmentActivity() {
         }.onFailure { setManagerFeedback("Could not delete space. Try again.") }
     }
 
+    /** Quiesces UI jobs, runs the non-cancellable reset, and keeps failures locked for retry. */
     private fun cleanUpPrivvy() {
         if (cleanupInProgress) return
         cleanupInProgress = true

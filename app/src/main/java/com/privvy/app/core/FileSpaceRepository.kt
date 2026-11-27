@@ -106,6 +106,7 @@ class FileSpaceRepository(context: Context) : SpaceRepository {
         VirtualStorage.ensureSpace(appContext, id)
     }
 
+    /** Replaces all metadata with one PIN-less Personal space after global data deletion. */
     override fun resetToDefault(): VirtualSpace = synchronized(lock) {
         val personal = defaultSpace()
         VirtualStorage.ensureSpace(appContext, personal.id)

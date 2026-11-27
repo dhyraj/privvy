@@ -49,11 +49,59 @@ Release APK: ~3.3 MB (NFR ≤ 25 MB), cold start ~2.0 s in repeated final API 33
 samples. See `progress.md`
 for the decision log, verification log, and known gaps.
 
-Spaces includes a confirmed full reset with an itemized warning covering spaces
-and PINs, cloned apps and guest data, vault files, permission choices, session
-state, and temporary files. It stops guests, removes that data, then creates a
-fresh Personal space. Host-installed apps and the Privvy installation are
-preserved.
+## Global cleanup and full reset
+
+Open **Spaces → Start fresh → Clean up Privvy** to remove all Privvy-managed data.
+The confirmation dialog lists every deletion category, explains that guests will
+be stopped and a fresh `Personal` space will be created, confirms that host apps
+and Privvy remain installed, and warns that the action cannot be undone.
+
+### Removed
+
+- All spaces, PIN hashes, and space metadata.
+- Imported/cloned APKs, native libraries, app registries, guest app data,
+  preferences, databases, virtual shared storage, MediaStore files, and guest
+  permission choices.
+- Encrypted vault files, indexes, and per-space vault keys.
+- Per-space guest-database encryption keys.
+- Session preferences, guest tokens, and the session lock marker.
+- APK import staging, optimized guest dex, vault preview/decrypted files, and
+  vault import temporary directories.
+- Registered guest receivers and cached guest class loaders/runtimes.
+
+### Preserved
+
+- The Privvy installation and package identity.
+- Host-installed apps and their data.
+- Privvy's host permission grants and unrelated host settings.
+- Unrelated files in Privvy's private directories.
+- Files outside Privvy-owned paths, including symlink targets.
+
+### Execution and safety
+
+`MainActivity` locks the UI, stops the session service, and cancels/joins active
+import, vault, and installed-app jobs before deletion. `GlobalCleanup.reset()`
+then stops and waits for guest processes, clears in-memory guest state, removes
+vault/database keys, and deletes only named Privvy-owned paths.
+
+Filesystem deletion validates the canonical parent and uses a no-follow file-tree
+walk, so cleanup cannot traverse a symlink into unrelated storage. The reset is
+synchronized and idempotent. Disk work is non-cancellable once started.
+
+If cleanup fails after partial deletion, Privvy remains locked and offers
+**Try again**. There is no rollback because the operation is explicitly
+permanent; rerunning the complete pipeline is the supported recovery path.
+
+### Verification and code map
+
+The cleanup pipeline is covered by `GlobalCleanupTest`,
+`FileSpaceRepositoryTest`, and `.maestro/flows/cleanup.yaml`. The full suite has
+29/29 instrumentation tests and 10/10 Maestro flows on both API 33 and API 35.
+The warning flow also passes in dark mode with 130% text.
+
+See [`docs/global-cleanup.md`](docs/global-cleanup.md) for the data-path inventory,
+ordered execution sequence, concurrency invariants, failure behavior, test
+commands, code map, and maintenance checklist.
 
 The host UI uses a warm-neutral, forest-green Material 3 light/dark theme with
 consistent spacing, plain language, accessible contrast and touch targets, and

@@ -255,6 +255,7 @@ object VaultCrypto {
         !root.exists()
     }
 
+    /** Removes every vault tree and per-space vault key; returns false on unsafe or failed deletion. */
     fun wipeAll(context: Context): Boolean = synchronized(operationLock) {
         val appContext = context.applicationContext
         val root = topLevelVaultDirectory(appContext)

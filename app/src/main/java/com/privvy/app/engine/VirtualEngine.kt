@@ -35,6 +35,7 @@ object VirtualEngine {
         GuestRuntimeFactory.clear(packageName)
     }
 
+    /** Drops cached guest class loaders and runtimes before their files are removed. */
     fun clearAllGuestClassLoaders() {
         synchronized(classLoaderCache) {
             classLoaderCache.clear()

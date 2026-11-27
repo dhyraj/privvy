@@ -62,6 +62,7 @@ object SessionLockManager {
         }
     }
 
+    /** Locks and waits for guest exit without sealing databases that are about to be deleted. */
     fun lockForReset(context: Context) {
         writeLockFile(context)
         check(guestTokensDir(context).deleteRecursively() || !guestTokensDir(context).exists())
@@ -70,6 +71,7 @@ object SessionLockManager {
         check(awaitGuestExit(context)) { "Guest processes did not stop" }
     }
 
+    /** Clears session preferences and tokens, then leaves a durable lock marker. */
     fun clearSessionState(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         check(prefs.edit().clear().commit()) { "Cannot reset session state" }

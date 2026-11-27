@@ -61,6 +61,7 @@ object VirtualStorage {
         check(sdcard.canonicalFile.parentFile == space.canonicalFile)
     }
 
+    /** Deletes a direct child of [expectedParent] without following symlinks. */
     fun deleteTreeNoFollow(directory: File, expectedParent: File): Boolean {
         val path = directory.absoluteFile.toPath()
         if (!Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return true

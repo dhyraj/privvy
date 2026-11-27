@@ -78,6 +78,7 @@ object GuestDatabaseCrypto {
         runCatching { loadKeyStore().deleteEntry(keyAlias(spaceId)) }
     }
 
+    /** Deletes all per-space guest-database keys after guest processes have stopped. */
     fun wipeAll(context: Context) = synchronized(lock) {
         val keyStore = loadKeyStore()
         repeat(VirtualStorage.SPACE_SLOTS) { spaceId ->

@@ -8,8 +8,10 @@ import com.privvy.app.security.SessionLockManager
 import com.privvy.app.security.VaultCrypto
 import java.io.File
 
+/** Coordinates the irreversible, symlink-safe removal of all Privvy-managed data. */
 object GlobalCleanup {
 
+    /** Stops guests, wipes owned data and keys, and returns one fresh PIN-less Personal space. */
     @Synchronized
     fun reset(context: Context): VirtualSpace {
         val appContext = context.applicationContext
@@ -34,6 +36,7 @@ object GlobalCleanup {
         return FileSpaceRepository(appContext).resetToDefault()
     }
 
+    /** Deletes only a direct child of [expectedParent] without following symlinks. */
     private fun deleteOwned(directory: File, expectedParent: File) {
         check(VirtualStorage.deleteTreeNoFollow(directory, expectedParent)) {
             "Cannot remove ${directory.name}"

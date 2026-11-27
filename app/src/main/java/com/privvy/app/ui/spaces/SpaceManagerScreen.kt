@@ -947,6 +947,7 @@ private fun ChangePinDialog(
     )
 }
 
+/** Destructive entry point for the confirmed global reset. */
 @Composable
 private fun CleanupCard(enabled: Boolean, onClick: () -> Unit) {
     Card(
