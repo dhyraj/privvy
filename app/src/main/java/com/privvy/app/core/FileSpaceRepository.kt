@@ -106,6 +106,13 @@ class FileSpaceRepository(context: Context) : SpaceRepository {
         VirtualStorage.ensureSpace(appContext, id)
     }
 
+    override fun resetToDefault(): VirtualSpace = synchronized(lock) {
+        val personal = defaultSpace()
+        VirtualStorage.ensureSpace(appContext, personal.id)
+        write(listOf(personal))
+        personal
+    }
+
     private fun read(): List<VirtualSpace> {
         if (!metadataFile.exists()) return emptyList()
         return try {

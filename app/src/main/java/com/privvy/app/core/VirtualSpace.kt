@@ -43,4 +43,5 @@ interface SpaceRepository {
     fun findSpaceByPin(pin: String): VirtualSpace?
     fun deleteSpace(id: Int)
     fun wipeSpace(id: Int)
+    fun resetToDefault(): VirtualSpace
 }

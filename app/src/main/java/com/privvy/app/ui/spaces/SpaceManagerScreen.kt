@@ -15,15 +15,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -84,18 +87,21 @@ fun SpaceManagerScreen(
     activeSpaceId: Int,
     message: String?,
     feedbackVersion: Int,
+    cleanupInProgress: Boolean,
     onClose: () -> Unit,
     onCreateSpace: (name: String, pin: String) -> Unit,
     onRenameSpace: (id: Int, name: String) -> Unit,
     onWipeSpace: (id: Int) -> Unit,
     onDeleteSpace: (id: Int) -> Unit,
     onChangePin: (id: Int, pin: String) -> Unit,
+    onCleanup: () -> Unit,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<VirtualSpace?>(null) }
     var pinTarget by remember { mutableStateOf<VirtualSpace?>(null) }
     var wipeTarget by remember { mutableStateOf<VirtualSpace?>(null) }
     var deleteTarget by remember { mutableStateOf<VirtualSpace?>(null) }
+    var showCleanupDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(message, feedbackVersion) {
@@ -137,16 +143,18 @@ fun SpaceManagerScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showCreateDialog = true },
-                modifier = Modifier.testTag("create_space_button"),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = null,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Create space")
+            if (!cleanupInProgress) {
+                ExtendedFloatingActionButton(
+                    onClick = { showCreateDialog = true },
+                    modifier = Modifier.testTag("create_space_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Add,
+                        contentDescription = null,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Create space")
+                }
             }
         },
     ) { contentPadding ->
@@ -274,6 +282,13 @@ fun SpaceManagerScreen(
                     },
                 )
             }
+
+            item {
+                CleanupCard(
+                    enabled = !cleanupInProgress,
+                    onClick = { showCleanupDialog = true },
+                )
+            }
         }
     }
 
@@ -307,6 +322,58 @@ fun SpaceManagerScreen(
             onConfirm = { pin ->
                 pinTarget = null
                 onChangePin(space.id, pin)
+            },
+        )
+    }
+
+    if (showCleanupDialog) {
+        AlertDialog(
+            onDismissRequest = { showCleanupDialog = false },
+            modifier = Modifier
+                .semantics { testTagsAsResourceId = true }
+                .testTag("cleanup_dialog"),
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            title = { Text("Clean up all Privvy data?") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        "This stops guest apps and permanently removes every space, " +
+                            "cloned app and its data, vault file, permission choice, and " +
+                            "temporary file. Privvy will return to PIN setup with a fresh " +
+                            "Personal space. Apps installed on your phone will not be removed. " +
+                            "This cannot be undone.",
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCleanupDialog = false
+                        onCleanup()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                    modifier = Modifier.testTag("confirm_cleanup"),
+                ) {
+                    Text("Delete everything")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanupDialog = false }) {
+                    Text("Cancel")
+                }
             },
         )
     }
@@ -834,6 +901,52 @@ private fun ChangePinDialog(
             }
         },
     )
+}
+
+@Composable
+private fun CleanupCard(enabled: Boolean, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("cleanup_card"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Start fresh",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Remove all Privvy spaces, cloned apps, vault files, and " +
+                    "temporary data. Your phone's installed apps stay untouched.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = onClick,
+                enabled = enabled,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("cleanup_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Delete,
+                    contentDescription = null,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Clean up Privvy")
+            }
+        }
+    }
 }
 
 @Composable

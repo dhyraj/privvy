@@ -19,15 +19,28 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -38,6 +51,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.privvy.app.BuildConfig
 import com.privvy.app.core.FileSpaceRepository
+import com.privvy.app.core.GlobalCleanup
 import com.privvy.app.core.InstalledApp
 import com.privvy.app.core.SpaceAppRegistry
 import com.privvy.app.core.VirtualSpace
@@ -67,7 +81,9 @@ import com.privvy.app.ui.theme.PrivvyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -104,6 +120,9 @@ class MainActivity : FragmentActivity() {
     private var vaultPickerEpoch = 0L
     private var vaultPickerSpaceId = -1
     private var vaultJob: Job? = null
+    private var importJob: Job? = null
+    private var cleanupInProgress by mutableStateOf(false)
+    private var cleanupFailed by mutableStateOf(false)
     private var systemPickerActive = false
     private var installedApps by mutableStateOf(emptyList<CloneAppOption>())
     private var installedAppsLoading by mutableStateOf(false)
@@ -188,8 +207,16 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun Content() {
+        if (cleanupInProgress) CleanupProgressDialog()
+        if (cleanupFailed) CleanupFailureDialog(
+            onDismiss = { cleanupFailed = false },
+            onRetry = {
+                cleanupFailed = false
+                cleanUpPrivvy()
+            },
+        )
         if (locked) {
             LockScreen(
                 hasPin = spaces.any { it.pinHashHex != null },
@@ -283,12 +310,14 @@ class MainActivity : FragmentActivity() {
                         activeSpaceId = activeSpaceId,
                         message = managerMessage,
                         feedbackVersion = managerFeedbackVersion,
+                        cleanupInProgress = cleanupInProgress,
                         onClose = { screen = Screen.HOME },
                         onCreateSpace = ::createSpace,
                         onRenameSpace = ::renameSpace,
                         onWipeSpace = ::wipeSpace,
                         onDeleteSpace = ::deleteSpace,
                         onChangePin = ::changePin,
+                        onCleanup = ::cleanUpPrivvy,
                     )
                     Screen.VAULT -> VaultFilesScreen(
                         files = vaultFiles,
@@ -429,7 +458,10 @@ class MainActivity : FragmentActivity() {
         pendingExportEpoch = 0L
         vaultPickerEpoch = 0L
         vaultPickerSpaceId = -1
+        systemPickerActive = false
         vaultJob?.cancel()
+        importJob?.cancel()
+        importJob = null
         clearVaultPreviews()
     }
 
@@ -578,10 +610,11 @@ class MainActivity : FragmentActivity() {
         val epoch = sessionEpoch
         importing = true
         importMessage = null
-        lifecycleScope.launch(Dispatchers.IO) {
+        importJob = lifecycleScope.launch(Dispatchers.IO) {
             val result = runCatching { operation(spaceId) }
             withContext(Dispatchers.Main) {
                 if (epoch != sessionEpoch || spaceId != activeSpaceId) return@withContext
+                importJob = null
                 importing = false
                 result.onSuccess { app ->
                     apps.removeAll { it.packageName == app.packageName }
@@ -710,6 +743,91 @@ class MainActivity : FragmentActivity() {
             }
             setManagerFeedback("Space deleted")
         }.onFailure { setManagerFeedback("Could not delete space. Try again.") }
+    }
+
+    private fun cleanUpPrivvy() {
+        if (cleanupInProgress) return
+        cleanupInProgress = true
+        cleanupFailed = false
+        locked = true
+        sessionEpoch++
+        lifecycleScope.launch {
+            stopSessionService()
+            val activeJobs = listOfNotNull(installedAppsJob, vaultJob, importJob)
+            activeJobs.forEach { it.cancel() }
+            activeJobs.joinAll()
+            applyLock()
+            val result = runCatching {
+                withContext(NonCancellable + Dispatchers.IO) {
+                    GlobalCleanup.reset(this@MainActivity)
+                }
+            }
+            result.onSuccess { personal ->
+                spaces = listOf(personal)
+                activeSpaceId = personal.id
+                setupSpaceId = personal.id
+                requiredSpaceId = null
+                cleanupInProgress = false
+                applyLock()
+            }.onFailure { error ->
+                Log.e("PrivvyCleanup", "global cleanup failed", error)
+                spaces = runCatching { repository.listSpaces() }.getOrDefault(spaces)
+                setupSpaceId = spaces.firstOrNull()?.id ?: 0
+                activeSpaceId = spaces.firstOrNull()?.id ?: 0
+                requiredSpaceId = null
+                cleanupInProgress = false
+                cleanupFailed = true
+                applyLock()
+            }
+        }
+    }
+
+    @Composable
+    private fun CleanupProgressDialog() {
+        AlertDialog(
+            onDismissRequest = {},
+            modifier = Modifier
+                .semantics { testTagsAsResourceId = true }
+                .testTag("cleanup_progress_dialog"),
+            title = { Text("Cleaning up Privvy") },
+            text = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                    Text("Stopping guests and removing Privvy data. This may take a moment.")
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
+    @Composable
+    private fun CleanupFailureDialog(onDismiss: () -> Unit, onRetry: () -> Unit) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            modifier = Modifier
+                .semantics { testTagsAsResourceId = true }
+                .testTag("cleanup_failure_dialog"),
+            title = { Text("Cleanup did not finish") },
+            text = {
+                Text(
+                    "Privvy is locked and some data may already have been removed. " +
+                        "Try cleanup again to finish starting fresh.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onRetry, modifier = Modifier.testTag("retry_cleanup")) {
+                    Text("Try again")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            },
+        )
     }
 
     private fun refreshVault() {

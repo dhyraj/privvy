@@ -78,6 +78,13 @@ object GuestDatabaseCrypto {
         runCatching { loadKeyStore().deleteEntry(keyAlias(spaceId)) }
     }
 
+    fun wipeAll(context: Context) = synchronized(lock) {
+        val keyStore = loadKeyStore()
+        repeat(VirtualStorage.SPACE_SLOTS) { spaceId ->
+            keyStore.deleteEntry(keyAlias(spaceId))
+        }
+    }
+
     private fun databaseFiles(context: Context, spaceId: Int): List<File> {
         // Canonicalize: applicationInfo.dataDir may be /data/user/0, a symlink
         // to /data/data, which would defeat the per-file symlink checks below.

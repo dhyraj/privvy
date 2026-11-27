@@ -255,6 +255,17 @@ object VaultCrypto {
         !root.exists()
     }
 
+    fun wipeAll(context: Context): Boolean = synchronized(operationLock) {
+        val appContext = context.applicationContext
+        val root = topLevelVaultDirectory(appContext)
+        if (!VirtualStorage.deleteTreeNoFollow(root, appContext.filesDir)) return false
+        val keyStore = loadKeyStore()
+        repeat(VirtualStorage.SPACE_SLOTS) { spaceId ->
+            keyStore.deleteEntry(keyAlias(spaceId))
+        }
+        !root.exists()
+    }
+
     private class DeletingParcelFileDescriptor(
         private val descriptor: ParcelFileDescriptor,
         private val temporary: File,

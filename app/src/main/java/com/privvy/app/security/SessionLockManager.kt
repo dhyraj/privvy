@@ -49,13 +49,7 @@ object SessionLockManager {
     }
 
     fun lockSession(context: Context) {
-        val file = lockFile(context)
-        val temporary = File(file.parentFile, "${file.name}.tmp")
-        temporary.writeText(System.currentTimeMillis().toString())
-        if (!temporary.renameTo(file)) {
-            file.writeText(System.currentTimeMillis().toString())
-            temporary.delete()
-        }
+        writeLockFile(context)
         check(guestTokensDir(context).deleteRecursively() || !guestTokensDir(context).exists())
         EngineState.lock()
         context.sendBroadcast(
@@ -68,18 +62,45 @@ object SessionLockManager {
         }
     }
 
+    fun lockForReset(context: Context) {
+        writeLockFile(context)
+        check(guestTokensDir(context).deleteRecursively() || !guestTokensDir(context).exists())
+        EngineState.lock()
+        killGuestProcesses(context)
+        check(awaitGuestExit(context)) { "Guest processes did not stop" }
+    }
+
+    fun clearSessionState(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        check(prefs.edit().clear().commit()) { "Cannot reset session state" }
+        writeLockFile(context)
+        check(guestTokensDir(context).deleteRecursively() || !guestTokensDir(context).exists())
+        EngineState.lock()
+    }
+
+    private fun writeLockFile(context: Context) {
+        val file = lockFile(context)
+        val temporary = File(file.parentFile, "${file.name}.tmp")
+        temporary.writeText(System.currentTimeMillis().toString())
+        if (!temporary.renameTo(file)) {
+            file.writeText(System.currentTimeMillis().toString())
+            temporary.delete()
+        }
+    }
+
     // Encryption must not race a guest that still holds plaintext database
     // descriptors; killProcess is asynchronous.
-    private fun awaitGuestExit(context: Context) {
-        val manager = context.getSystemService(ActivityManager::class.java) ?: return
+    private fun awaitGuestExit(context: Context): Boolean {
+        val manager = context.getSystemService(ActivityManager::class.java) ?: return true
         val deadline = SystemClock.elapsedRealtime() + 3_000L
         while (SystemClock.elapsedRealtime() < deadline) {
             val guestRunning = manager.runningAppProcesses.orEmpty().any {
                 it.processName.startsWith("${context.packageName}:v")
             }
-            if (!guestRunning) return
+            if (!guestRunning) return true
             SystemClock.sleep(100L)
         }
+        return false
     }
 
     fun ensureGuestAllowed(context: Context): Boolean {

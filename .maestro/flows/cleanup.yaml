@@ -1,0 +1,128 @@
+appId: com.privvy.app
+name: Global cleanup and fresh start
+tags:
+  - cleanup
+  - spaces
+  - smoke
+---
+- launchApp
+- assertVisible: "Create a PIN to protect this space"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "1"
+- tapOn: "2"
+- tapOn: "3"
+- tapOn: "4"
+- tapOn: "Set PIN"
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Session active"
+- tapOn: "Import test APK (debug)"
+- extendedWaitUntil:
+    visible: ".*Imported.*"
+    timeout: 20000
+- assertVisible: "Guest Test"
+- tapOn:
+    id: "launch_com.privvy.guesttest"
+- extendedWaitUntil:
+    visible: "Hello from guest APK"
+    timeout: 20000
+- pressKey: BACK
+- assertVisible: "Session active"
+- scrollUntilVisible:
+    element: "Spaces"
+    direction: DOWN
+- tapOn: "Spaces"
+- tapOn:
+    id: "create_space_button"
+- tapOn:
+    id: "create_space_name"
+- inputText: "Work"
+- pressKey: ENTER
+- inputText: "5678"
+- pressKey: ENTER
+- inputText: "5678"
+- pressKey: ENTER
+- assertVisible: "Created Work"
+- tapOn:
+    id: "close_space_manager"
+- scrollUntilVisible:
+    element: "Encrypted vault"
+    direction: DOWN
+- tapOn: "Encrypted vault"
+- tapOn:
+    id: "import_vault_file"
+- extendedWaitUntil:
+    visible: "Show roots"
+    timeout: 10000
+- tapOn:
+    point: 80, 120
+- extendedWaitUntil:
+    visible: "Downloads"
+    timeout: 10000
+- tapOn: "Downloads"
+- extendedWaitUntil:
+    visible: "vault-sample.*\\.txt.*"
+    timeout: 10000
+- tapOn: "vault-sample.*\\.txt.*"
+- extendedWaitUntil:
+    visible: "Imported vault-sample.*\\.txt.*"
+    timeout: 20000
+- assertVisible: "vault-sample.*\\.txt.*"
+- tapOn:
+    id: "back_from_vault"
+- scrollUntilVisible:
+    element: "Spaces"
+    direction: DOWN
+- tapOn: "Spaces"
+- scrollUntilVisible:
+    element:
+      id: "cleanup_button"
+    direction: DOWN
+- tapOn:
+    id: "cleanup_button"
+- assertVisible: "Clean up all Privvy data?"
+- assertVisible: "(?s).*Apps installed on your phone will not be removed.*"
+- tapOn: "Cancel"
+- assertVisible:
+    id: "cleanup_button"
+- tapOn:
+    id: "cleanup_button"
+- tapOn:
+    id: "confirm_cleanup"
+- extendedWaitUntil:
+    visible: "Create a PIN to protect this space"
+    timeout: 30000
+- tapOn: "2"
+- tapOn: "4"
+- tapOn: "6"
+- tapOn: "8"
+- tapOn: "Continue"
+- assertVisible: "Confirm your PIN"
+- tapOn: "2"
+- tapOn: "4"
+- tapOn: "6"
+- tapOn: "8"
+- tapOn: "Set PIN"
+- assertVisible: "Session active"
+- assertVisible: "No apps in this space yet"
+- assertNotVisible: "Guest Test"
+- scrollUntilVisible:
+    element: "Encrypted vault"
+    direction: DOWN
+- tapOn: "Encrypted vault"
+- assertVisible: "Your vault is empty"
+- tapOn:
+    id: "back_from_vault"
+- scrollUntilVisible:
+    element: "Spaces"
+    direction: DOWN
+- tapOn: "Spaces"
+- assertVisible: "1 isolated workspace"
+- launchApp: com.android.settings
+- launchApp: com.privvy.app

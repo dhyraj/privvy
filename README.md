@@ -44,10 +44,15 @@ PIN + biometric unlock with multi-space routing, automatic session locking
 return pill over guests.
 
 Verified on Pixel 8a emulators: API 33 (4 KB pages) and API 35 (16 KB pages) —
-9/9 Maestro UI flows on each, 27/27 instrumentation tests, lint green.
+10/10 Maestro UI flows on each, 29/29 instrumentation tests, lint green.
 Release APK: ~3.3 MB (NFR ≤ 25 MB), cold start ~2.0 s in repeated final API 33
 samples. See `progress.md`
 for the decision log, verification log, and known gaps.
+
+Spaces includes a confirmed full reset that stops guests, removes Privvy's
+spaces, cloned apps and data, vault, permission decisions, session state, and
+temporary files, then creates a fresh Personal space. Host-installed apps and
+the Privvy installation are preserved.
 
 The host UI uses a warm-neutral, forest-green Material 3 light/dark theme with
 consistent spacing, plain language, accessible contrast and touch targets, and

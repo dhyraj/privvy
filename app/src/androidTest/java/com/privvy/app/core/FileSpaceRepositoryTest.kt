@@ -37,4 +37,19 @@ class FileSpaceRepositoryTest {
         assertTrue(reloaded.verifyPin(0, "1234"))
         assertEquals(0, reloaded.findSpaceByPin("1234")?.id)
     }
+
+    @Test
+    fun resetReplacesAllSpacesWithPinlessPersonalSpace() {
+        val repository = FileSpaceRepository(context)
+        repository.listSpaces()
+        repository.setPin(0, "1234")
+        repository.createSpace("Work", "5678".toCharArray())
+
+        val personal = repository.resetToDefault()
+
+        assertEquals(0, personal.id)
+        assertEquals("Personal", personal.name)
+        assertNull(personal.pinHashHex)
+        assertEquals(listOf(personal), FileSpaceRepository(context).listSpaces())
+    }
 }

@@ -35,6 +35,13 @@ object VirtualEngine {
         GuestRuntimeFactory.clear(packageName)
     }
 
+    fun clearAllGuestClassLoaders() {
+        synchronized(classLoaderCache) {
+            classLoaderCache.clear()
+        }
+        GuestRuntimeFactory.clearAll()
+    }
+
     /** Idempotent: hook ActivityThread.mInstrumentation once per GUEST process. */
     fun hookInstrumentation(context: Context) {
         if (instrumentationHooked) return

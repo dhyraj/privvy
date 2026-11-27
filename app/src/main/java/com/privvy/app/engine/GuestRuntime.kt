@@ -101,4 +101,9 @@ object GuestRuntimeFactory {
         runtimes.remove(packageName)
     }
 
+    @Synchronized
+    fun clearAll() {
+        runtimes.clear()
+    }
+
 }
