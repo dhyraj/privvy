@@ -87,7 +87,21 @@ tags:
 - tapOn:
     id: "cleanup_button"
 - assertVisible: "Clean up all Privvy data?"
-- assertVisible: "(?s).*Apps installed on your phone will not be removed.*"
+- assertVisible:
+    id: "cleanup_warning"
+- assertVisible: "Warning"
+- assertVisible: "(?s).*All spaces and their PINs.*"
+- assertVisible: "(?s).*Cloned apps and all guest data.*"
+- assertVisible: "(?s).*Vault files.*"
+- assertVisible: "(?s).*Guest permission choices.*"
+- assertVisible: "(?s).*Session data and temporary files.*"
+- scrollUntilVisible:
+    element: "(?s).*Apps installed on your phone and the Privvy installation will not be removed.*"
+    direction: DOWN
+- scrollUntilVisible:
+    element: "This cannot be undone."
+    direction: DOWN
+- assertVisible: "This cannot be undone."
 - tapOn: "Cancel"
 - assertVisible:
     id: "cleanup_button"

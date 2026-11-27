@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -346,12 +347,55 @@ fun SpaceManagerScreen(
                         .heightIn(max = 360.dp)
                         .verticalScroll(rememberScrollState()),
                 ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("cleanup_warning"),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "Warning",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = "The following will be permanently deleted:",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            listOf(
+                                "All spaces and their PINs",
+                                "Cloned apps and all guest data",
+                                "Vault files",
+                                "Guest permission choices",
+                                "Session data and temporary files",
+                            ).forEach { item ->
+                                Text(
+                                    text = "• $item",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
                     Text(
-                        "This stops guest apps and permanently removes every space, " +
-                            "cloned app and its data, vault file, permission choice, and " +
-                            "temporary file. Privvy will return to PIN setup with a fresh " +
-                            "Personal space. Apps installed on your phone will not be removed. " +
-                            "This cannot be undone.",
+                        "Guest apps will be stopped. Privvy will return to PIN setup " +
+                            "with a fresh Personal space.",
+                    )
+                    Text(
+                        "Apps installed on your phone and the Privvy installation " +
+                            "will not be removed.",
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "This cannot be undone.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             },
